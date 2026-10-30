@@ -46,3 +46,29 @@ Configuration
 -------------
 The configuration of dwm is done by creating a custom config.h
 and (re)compiling the source code.
+
+
+# dwm
+
+My personal fork of [dwm](https://dwm.suckless.org/), the dynamic window manager for X11.
+
+Based on suckless dwm and kept for **my own use**.  
+Everything not listed below is upstream code; the notes here are mine.
+
+## Personal use
+
+This repo is for **my own setup**.  
+It is not a general-purpose project, and I don’t guarantee it will work on your machine.  
+Feel free to read/copy it, but expect to edit `config.h` for your own system.
+
+## What’s included
+
+- **Systray support** (with spacing and icon size options)
+- **Xft font rendering** — uses `VictorMono Nerd Font` by default
+- **Media keys** for volume (via `pactl`) and screen brightness (via `brightnessctl`)
+- **Refresh rate patch** for smoother window move/resize
+- **dmenu desktop launcher** (`dmenu_run_desktop`) and a `sysmenu` binding
+- **Screenshot keybindings** using scripts in `$HOME/bin/`
+- Personal color scheme and tag layout
+
+See `config.h` for all keybindings, rules, and appearance settings.
