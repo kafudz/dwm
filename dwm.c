@@ -1086,7 +1086,15 @@ incnmaster(const Arg *arg)
 }
 
 #ifdef XINERAMA
-static int isuniquegeom(XineramaScreenInfo *unique, size_t n, XineramaScreenInfo *info);
+static int
+isuniquegeom(XineramaScreenInfo *unique, size_t n, XineramaScreenInfo *info)
+{
+	while (n--)
+		if (unique[n].x_org == info->x_org && unique[n].y_org == info->y_org
+		&& unique[n].width == info->width && unique[n].height == info->height)
+			return 0;
+	return 1;
+}
 #endif /* XINERAMA */
 
 void
