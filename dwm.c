@@ -384,6 +384,9 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact)
 			*w -= c->basew;
 			*h -= c->baseh;
 		}
+		/* Base sizes supplied by broken clients can exceed the requested size. */
+		*w = MAX(1, *w);
+		*h = MAX(1, *h);
 		if (c->mina > 0 && c->maxa > 0) {
 			if (c->maxa < (float)*w / *h)
 				*w = *h * c->maxa + 0.5;
@@ -394,6 +397,8 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact)
 			*w -= c->basew;
 			*h -= c->baseh;
 		}
+		*w = MAX(1, *w);
+		*h = MAX(1, *h);
 		if (c->incw)
 			*w -= *w % c->incw;
 		if (c->inch)
@@ -530,6 +535,7 @@ cleanup(void)
 		for (ic = systray->icons; ic; ic = icnext) {
 			icnext = ic->next;
 			XReparentWindow(dpy, ic->win, root, 0, 0);
+			XRemoveFromSaveSet(dpy, ic->win);
 			free(ic);
 		}
 		XUnmapWindow(dpy, systray->win);
@@ -554,14 +560,21 @@ cleanupmon(Monitor *mon)
 {
 	Monitor *m;
 
+	if (!mon)
+		return;
 	if (mon == mons)
-		mons = mons->next;
+		mons = mon->next;
 	else {
-		for (m = mons; m && m->next != mon; m = m->next);
+		for (m = mons; m && m->next != mon; m = m->next)
+			;
+		if (!m)
+			return;
 		m->next = mon->next;
 	}
-	XUnmapWindow(dpy, mon->barwin);
-	XDestroyWindow(dpy, mon->barwin);
+	if (mon->barwin) {
+		XUnmapWindow(dpy, mon->barwin);
+		XDestroyWindow(dpy, mon->barwin);
+	}
 	free(mon);
 }
 
@@ -726,8 +739,12 @@ detach(Client *c)
 {
 	Client **tc;
 
-	for (tc = &c->mon->clients; *tc && *tc != c; tc = &(*tc)->next);
-	*tc = c->next;
+	if (!c || !c->mon)
+		return;
+	for (tc = &c->mon->clients; *tc && *tc != c; tc = &(*tc)->next)
+		;
+	if (*tc)
+		*tc = c->next;
 }
 
 void
@@ -735,7 +752,12 @@ detachstack(Client *c)
 {
 	Client **tc, *t;
 
-	for (tc = &c->mon->stack; *tc && *tc != c; tc = &(*tc)->snext);
+	if (!c || !c->mon)
+		return;
+	for (tc = &c->mon->stack; *tc && *tc != c; tc = &(*tc)->snext)
+		;
+	if (!*tc)
+		return;
 	*tc = c->snext;
 	if (c == c->mon->sel) {
 		for (t = c->mon->stack; t && !ISVISIBLE(t); t = t->snext);
@@ -748,13 +770,19 @@ dirtomon(int dir)
 {
 	Monitor *m = NULL;
 
+	if (!selmon || !mons)
+		return mons;
 	if (dir > 0) {
 		if (!(m = selmon->next))
 			m = mons;
 	} else if (selmon == mons)
 		for (m = mons; m->next; m = m->next);
-	else
-		for (m = mons; m->next != selmon; m = m->next);
+	else {
+		for (m = mons; m && m->next && m->next != selmon; m = m->next)
+			;
+		if (!m)
+			m = mons;
+	}
 	return m;
 }
 
@@ -936,7 +964,7 @@ getatomprop(Client *c, Atom prop)
 
 	if (XGetWindowProperty(dpy, c->win, prop, 0L, sizeof atom, False, XA_ATOM,
 		&da, &format, &nitems, &dl, &p) == Success && p) {
-		if (nitems > 0 && format == 32)
+		if (da == XA_ATOM && nitems > 0 && format == 32)
 			atom = *(long *)p;
 		XFree(p);
 	}
@@ -998,9 +1026,10 @@ getstate(Window w)
 	if (XGetWindowProperty(dpy, w, wmatom[WMState], 0L, 2L, False, wmatom[WMState],
 		&real, &format, &n, &extra, &p) != Success)
 		return -1;
-	if (n != 0 && format == 32)
+	if (p && n != 0 && format == 32)
 		result = *(long *)p;
-	XFree(p);
+	if (p)
+		XFree(p);
 	return result;
 }
 
@@ -1014,18 +1043,24 @@ gettextprop(Window w, Atom atom, char *text, unsigned int size)
 	if (!text || size == 0)
 		return 0;
 	text[0] = '\0';
-	if (!XGetTextProperty(dpy, w, &name, atom) || !name.nitems)
+	if (!XGetTextProperty(dpy, w, &name, atom))
 		return 0;
+	if (!name.nitems) {
+		if (name.value)
+			XFree(name.value);
+		return 0;
+	}
 	if (name.encoding == XA_STRING) {
 			snprintf(text, size, "%s", (char *)name.value);
-	} else if (XmbTextPropertyToTextList(dpy, &name, &list, &n) >= Success) {
-		if (n > 0 && *list)
-			snprintf(text, size, "%s", *list);
-		XFreeStringList(list);
+	} else if (XmbTextPropertyToTextList(dpy, &name, &list, &n) == Success) {
+		if (n > 0 && list && list[0])
+			snprintf(text, size, "%s", list[0]);
 	}
+	if (list)
+		XFreeStringList(list);
 	text[size - 1] = '\0';
 	XFree(name.value);
-	return 1;
+	return text[0] != '\0';
 }
 
 void
@@ -1623,9 +1658,10 @@ sendevent(Window w, Atom proto, int mask, long d0, long d1, long d2, long d3, lo
 	if (proto == wmatom[WMTakeFocus] || proto == wmatom[WMDelete]) {
 		mt = wmatom[WMProtocols];
 		if (XGetWMProtocols(dpy, w, &protocols, &n)) {
-			while (!exists && n--)
+			while (!exists && n-- > 0)
 				exists = protocols[n] == proto;
-			XFree(protocols);
+			if (protocols)
+				XFree(protocols);
 		}
 	} else {
 		exists = True;
@@ -1649,6 +1685,8 @@ sendevent(Window w, Atom proto, int mask, long d0, long d1, long d2, long d3, lo
 void
 setfocus(Client *c)
 {
+	if (!c)
+		return;
 	if (!c->neverfocus)
 		XSetInputFocus(dpy, c->win, RevertToPointerRoot, CurrentTime);
 	XChangeProperty(dpy, root, netatom[NetActiveWindow], XA_WINDOW, 32,
@@ -1952,7 +1990,11 @@ unfocus(Client *c, int setfocus)
 void
 unmanage(Client *c, int destroyed)
 {
-	Monitor *m = c->mon;
+	Monitor *m;
+
+	if (!c || !c->mon)
+		return;
+	m = c->mon;
 	XWindowChanges wc;
 
 	detach(c);
@@ -2057,14 +2099,20 @@ updategeom(void)
 
 #ifdef XINERAMA
 	if (XineramaIsActive(dpy)) {
-		int i, j, n, nn;
+		int i, j, n, nn = 0;
 		Client *c;
 		Monitor *m;
 		XineramaScreenInfo *info = XineramaQueryScreens(dpy, &nn);
 		XineramaScreenInfo *unique = NULL;
 
-		for (n = 0, m = mons; m; m = m->next, n++);
-		unique = ecalloc(nn, sizeof(XineramaScreenInfo));
+		if (!info || nn <= 0) {
+			if (info)
+				XFree(info);
+			return 0;
+		}
+		for (n = 0, m = mons; m; m = m->next, n++)
+			;
+		unique = ecalloc((size_t)nn, sizeof(*unique));
 		for (i = 0, j = 0; i < nn; i++)
 			if (isuniquegeom(unique, j, &info[i]))
 				memcpy(&unique[j++], &info[i], sizeof(XineramaScreenInfo));
@@ -2175,7 +2223,8 @@ updatesizehints(Client *c)
 		c->minh = MAX(0, size.base_height);
 	} else
 		c->minw = c->minh = 0;
-	if ((size.flags & PAspect) && size.min_aspect.x > 0 && size.max_aspect.y > 0) {
+	if ((size.flags & PAspect) && size.min_aspect.x > 0 && size.min_aspect.y > 0
+	&& size.max_aspect.x > 0 && size.max_aspect.y > 0) {
 		c->mina = (float)size.min_aspect.y / size.min_aspect.x;
 		c->maxa = (float)size.max_aspect.x / size.max_aspect.y;
 	} else
@@ -2202,8 +2251,10 @@ updatesystrayicongeom(Client *i, int w, int h)
 	i->h = MIN((int)systrayiconsize, bh);
 	if (w <= 0 || h <= 0 || w == h)
 		i->w = i->h;
-	else
-		i->w = MAX(1, (int)((float)i->h * ((float)w / (float)h)));
+	else {
+		double width = (double)i->h * (double)w / (double)h;
+		i->w = width > 65535.0 ? 65535 : MAX(1, (int)width);
+	}
 }
 
 void
