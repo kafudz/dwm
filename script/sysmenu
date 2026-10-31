@@ -1,0 +1,35 @@
+#!/bin/sh
+# dmenu power menu
+
+# Ask for confirmation before destructive actions (returns 0 on "Yes")
+confirm() {
+    [ "$(printf 'No\nYes\n' | dmenu -i -p "$1?")" = "Yes" ]
+}
+
+choice=$(printf '%s\n' "Log out" "Reboot" "Shutdown" "Suspend" "Hibernate" "Cancel" |
+    dmenu -i -p "System :") || exit 0
+
+case "$choice" in
+    "Log out")
+        confirm "Log out" || exit 0
+        # Stop the window manager; X exits when dwm is the last client of xinit.
+        # Fall back to xinit itself (exact match, so other processes are safe).
+        pkill -x dwm || pkill -x xinit
+        ;;
+    "Reboot")
+        confirm "Reboot" && systemctl reboot
+        ;;
+    "Shutdown")
+        confirm "Shutdown" && systemctl poweroff
+        ;;
+    "Suspend")
+        systemctl suspend
+        ;;
+    "Hibernate")
+        systemctl hibernate ||
+            notify-send "Hibernate failed" "Check swap / resume= kernel parameter" 2>/dev/null
+        ;;
+    *)
+        exit 0
+        ;;
+esac
