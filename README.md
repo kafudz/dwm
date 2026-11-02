@@ -67,7 +67,7 @@ Feel free to read/copy it, but expect to edit `config.h` for your own system.
 - **Xft font rendering** — uses `VictorMono Nerd Font` by default
 - **Media keys** for volume (via `pactl`) and screen brightness (via `brightnessctl`)
 - **Refresh rate patch** for smoother window move/resize
-- **dmenu desktop launcher** (`dmenu_run_desktop`) and a `sysmenu` binding
+- **dmenu desktop launcher** (`dmenu_apps`) and a `sysmenu` binding
 - **Screenshot keybindings** using scripts in `$HOME/bin/`
 - Personal color scheme and tag layout
 

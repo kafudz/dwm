@@ -41,9 +41,9 @@
 
 /* macros */
 #define BUTTONMASK              (ButtonPressMask|ButtonReleaseMask)
-#define CLEANMASK(mask)         (mask & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
+#define CLEANMASK(mask)         ((mask) & ~(numlockmask|LockMask) & (ShiftMask|ControlMask|Mod1Mask|Mod2Mask|Mod3Mask|Mod4Mask|Mod5Mask))
 #define INTERSECT(x,y,w,h,m)    (MAX(0, MIN((x)+(w),(m)->wx+(m)->ww) - MAX((x),(m)->wx)) * MAX(0, MIN((y)+(h),(m)->wy+(m)->wh) - MAX((y),(m)->wy)))
-#define ISVISIBLEONTAG(C, T)    ((C->tags & T))
+#define ISVISIBLEONTAG(C, T)    (((C)->tags & (T)))
 #define ISVISIBLE(C)            ISVISIBLEONTAG(C, C->mon->tagset[C->mon->seltags])
 #define MOUSEMASK               (BUTTONMASK|PointerMotionMask)
 #define WIDTH(X)                ((X)->w + 2 * (X)->bw)
@@ -302,11 +302,6 @@ static Window root, wmcheckwin;
 /* configuration, allows nested code to access above variables */
 #include "config.h"
 
-/* Fallback definition to make refreshrate usable even if omitted in config.h */
-#ifndef refreshrate
-#define refreshrate 60
-#endif
-
 /* compile-time check if all tags fit into an unsigned int bit array. */
 struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
 
@@ -443,9 +438,11 @@ attach(Client *c)
 }
 
 void
-attachaside(Client *c) {
+attachaside(Client *c)
+{
 	Client *at = nexttagged(c);
-	if(!at) {
+
+	if (!at) {
 		attach(c);
 		return;
 	}
@@ -1260,7 +1257,7 @@ monocle(Monitor *m)
 		if (ISVISIBLE(c))
 			n++;
 	if (n > 0)
-		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
+		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%u]", n);
 	for (c = nexttiled(m->clients); c; c = nexttiled(c->next))
 		resize(c, m->wx, m->wy, m->ww - 2 * c->bw, m->wh - 2 * c->bw, 0);
 }
@@ -1301,8 +1298,10 @@ movemouse(const Arg *arg)
 	if (XGrabPointer(dpy, root, False, MOUSEMASK, GrabModeAsync, GrabModeAsync,
 		None, cursor[CurMove]->cursor, CurrentTime) != GrabSuccess)
 		return;
-	if (!getrootptr(&x, &y))
+	if (!getrootptr(&x, &y)) {
+		XUngrabPointer(dpy, CurrentTime);
 		return;
+	}
 	do {
 		XMaskEvent(dpy, MOUSEMASK|ExposureMask|SubstructureRedirectMask, &ev);
 		switch(ev.type) {
@@ -1342,9 +1341,11 @@ movemouse(const Arg *arg)
 }
 
 Client *
-nexttagged(Client *c) {
+nexttagged(Client *c)
+{
 	Client *walked = c->mon->clients;
-	for(; walked && (walked->isfloating || !ISVISIBLEONTAG(walked, c->tags)); walked = walked->next);
+
+	for (; walked && (walked->isfloating || !ISVISIBLEONTAG(walked, c->tags)); walked = walked->next);
 	return walked;
 }
 
@@ -1359,7 +1360,7 @@ void
 pop(Client *c)
 {
 	detach(c);
-	attachaside(c);
+	attach(c);
 	focus(c);
 	arrange(c->mon);
 }
