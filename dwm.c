@@ -1195,16 +1195,21 @@ manage(Window w, XWindowAttributes *wa)
 	updatewindowtype(c);
 	updatesizehints(c);
 	updatewmhints(c);
-	if (!c->isfloating) {
-		c->x = c->mon->wx + (c->mon->ww - WIDTH(c)) / 2;
-		c->y = c->mon->wy + (c->mon->wh - HEIGHT(c)) / 2;
-	}
 	XSelectInput(dpy, w, EnterWindowMask|FocusChangeMask|PropertyChangeMask|StructureNotifyMask);
 	grabbuttons(c, 0);
 	if (!c->isfloating)
 		c->isfloating = c->oldstate = trans != None || c->isfixed;
-	if (c->isfloating)
+	if (c->isfloating) {
+		/* center pop-ups (dialogs, transients, fixed-size and rule-floated
+		 * windows) on their monitor; fullscreen windows keep their geometry */
+		if (!c->isfullscreen) {
+			c->x = c->mon->wx + (c->mon->ww - WIDTH(c)) / 2;
+			c->y = c->mon->wy + (c->mon->wh - HEIGHT(c)) / 2;
+			c->x = MAX(c->x, c->mon->wx);
+			c->y = MAX(c->y, c->mon->wy);
+		}
 		XRaiseWindow(dpy, c->win);
+	}
 	attachaside(c);
 	attachstack(c);
 	XChangeProperty(dpy, root, netatom[NetClientList], XA_WINDOW, 32, PropModeAppend,
