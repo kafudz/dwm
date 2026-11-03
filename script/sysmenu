@@ -1,13 +1,16 @@
 #!/bin/sh
 # dmenu power menu
 
+# Font used for dmenu (VictorMono Nerd Font)
+FONT="VictorMono Nerd Font:size=11"
+
 # Ask for confirmation before destructive actions (returns 0 on "Yes")
 confirm() {
     [ "$(printf 'No\nYes\n' | dmenu -i -p "$1?")" = "Yes" ]
 }
 
 choice=$(printf '%s\n' "Log out" "Reboot" "Shutdown" "Suspend" "Hibernate" "Cancel" |
-    dmenu -i -p "System :") || exit 0
+    dmenu -i -fn "$FONT" -p "System :") || exit 0
 
 case "$choice" in
     "Log out")
