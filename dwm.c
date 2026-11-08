@@ -16,6 +16,7 @@
  * To understand everything else, start reading main().
  */
 #include <errno.h>
+#include <limits.h>
 #include <locale.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -183,6 +184,7 @@ static void focusin(XEvent *e);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static Atom getatomprop(Client *c, Atom prop);
+static int hasatomprop(Client *c, Atom prop, Atom atom);
 static int getrootptr(int *x, int *y);
 static long getstate(Window w);
 static unsigned int getsystraywidth(Monitor *m);
@@ -383,10 +385,13 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact)
 		*w = MAX(1, *w);
 		*h = MAX(1, *h);
 		if (c->mina > 0 && c->maxa > 0) {
-			if (c->maxa < (float)*w / *h)
-				*w = *h * c->maxa + 0.5;
-			else if (c->mina < (float)*h / *w)
-				*h = *w * c->mina + 0.5;
+			if (c->maxa < (double)*w / *h) {
+				double nw = (double)*h * c->maxa + 0.5;
+				*w = nw >= INT_MAX / 2 ? INT_MAX / 2 : MAX(1, (int)nw);
+			} else if (c->mina < (double)*h / *w) {
+				double nh = (double)*w * c->mina + 0.5;
+				*h = nh >= INT_MAX / 2 ? INT_MAX / 2 : MAX(1, (int)nh);
+			}
 		}
 		if (baseismin) {
 			*w -= c->basew;
@@ -637,8 +642,16 @@ configurenotify(XEvent *e)
 			updatebars();
 			for (m = mons; m; m = m->next) {
 				for (c = m->clients; c; c = c->next)
-					if (c->isfullscreen)
+					if (c->isfullscreen) {
+						int ox = c->oldx, oy = c->oldy;
+						int ow = c->oldw, oh = c->oldh;
+
 						resizeclient(c, m->mx, m->my, m->mw, m->mh);
+						c->oldx = ox;
+						c->oldy = oy;
+						c->oldw = ow;
+						c->oldh = oh;
+					}
 				resizebarwin(m);
 			}
 			updatesystray();
@@ -659,7 +672,7 @@ configurerequest(XEvent *e)
 	if ((c = wintoclient(ev->window))) {
 		if (ev->value_mask & CWBorderWidth)
 			c->bw = ev->border_width;
-		else if (c->isfloating || !selmon->lt[selmon->sellt]->arrange) {
+		else if (c->isfloating || !c->mon->lt[c->mon->sellt]->arrange) {
 			m = c->mon;
 			if (ev->value_mask & CWX) {
 				c->oldx = c->x;
@@ -792,7 +805,7 @@ drawbar(Monitor *m)
 	unsigned int i, occ = 0, urg = 0;
 	Client *c;
 
-	if (!m->showbar)
+	if (!m || !m->showbar)
 		return;
 	stw = getsystraywidth(m);
 	if (!systrayonleft)
@@ -880,6 +893,8 @@ expose(XEvent *e)
 void
 focus(Client *c)
 {
+	if (!selmon)
+		return;
 	if (!c || !ISVISIBLE(c))
 		for (c = selmon->stack; c && !ISVISIBLE(c); c = c->snext);
 	if (selmon->sel && selmon->sel != c)
@@ -916,7 +931,7 @@ focusmon(const Arg *arg)
 {
 	Monitor *m;
 
-	if (!mons->next)
+	if (!mons || !mons->next)
 		return;
 	if ((m = dirtomon(arg->i)) == selmon)
 		return;
@@ -969,6 +984,27 @@ getatomprop(Client *c, Atom prop)
 }
 
 int
+hasatomprop(Client *c, Atom prop, Atom atom)
+{
+	int format, found = 0;
+	unsigned long i, nitems, dl;
+	unsigned char *p = NULL;
+	Atom da;
+
+	if (XGetWindowProperty(dpy, c->win, prop, 0L, 1024L, False, XA_ATOM,
+		&da, &format, &nitems, &dl, &p) == Success && p) {
+		if (da == XA_ATOM && format == 32)
+			for (i = 0; i < nitems; i++)
+				if (((Atom *)p)[i] == atom) {
+					found = 1;
+					break;
+				}
+		XFree(p);
+	}
+	return found;
+}
+
+int
 getxembedflags(Window w, long *flags)
 {
 	int format, ok = 0;
@@ -993,12 +1029,14 @@ getsystraywidth(Monitor *m)
 	unsigned int w = 0;
 	Client *i;
 
-	if (!showsystray || !systray || m != systraytomon(m))
+	if (!m || !showsystray || !systray || m != systraytomon(m))
 		return 0;
 	for (i = systray->icons; i; i = i->next)
 		if (i->tags)
 			w += i->w + systrayspacing;
-	return w ? w + systrayspacing : 1;
+	if (m->ww <= 0)
+		return 1;
+	return w ? MIN(w + systrayspacing, (unsigned int)m->ww) : 1;
 }
 
 int
@@ -1474,9 +1512,15 @@ resize(Client *c, int x, int y, int w, int h, int interact)
 void
 resizebarwin(Monitor *m)
 {
-	unsigned int w = m->ww;
+	unsigned int w;
+
+	if (!m || !m->barwin)
+		return;
+	w = m->ww > 0 ? (unsigned int)m->ww : 0;
 	if (!systrayonleft)
-		w -= getsystraywidth(m);
+		w -= MIN(w, getsystraywidth(m));
+	if (w < 1)
+		w = 1;
 	XMoveResizeWindow(dpy, m->barwin, m->wx, m->by, w, bh);
 }
 
@@ -1638,8 +1682,16 @@ sendmon(Client *c, Monitor *m)
 	c->tags = m->tagset[m->seltags];
 	attachaside(c);
 	attachstack(c);
-	if (c->isfullscreen)
+	if (c->isfullscreen) {
+		int ox = c->oldx, oy = c->oldy;
+		int ow = c->oldw, oh = c->oldh;
+
 		resizeclient(c, m->mx, m->my, m->mw, m->mh);
+		c->oldx = ox;
+		c->oldy = oy;
+		c->oldw = ow;
+		c->oldh = oh;
+	}
 	focus(NULL);
 	arrange(NULL);
 }
@@ -2057,9 +2109,11 @@ updatebars(void)
 	for (m = mons; m; m = m->next) {
 		if (m->barwin)
 			continue;
-		w = m->ww;
+		w = m->ww > 0 ? (unsigned int)m->ww : 0;
 		if (!systrayonleft)
-			w -= getsystraywidth(m);
+			w -= MIN(w, getsystraywidth(m));
+		if (w < 1)
+			w = 1;
 		m->barwin = XCreateWindow(dpy, root, m->wx, m->by, w, bh, 0, DefaultDepth(dpy, screen),
 				CopyFromParent, DefaultVisual(dpy, screen),
 				CWOverrideRedirect|CWBackPixmap|CWEventMask, &wa);
@@ -2074,6 +2128,8 @@ updatebars(void)
 void
 updatebarpos(Monitor *m)
 {
+	if (!m)
+		return;
 	m->wy = m->my;
 	m->wh = m->mh;
 	if (m->showbar) {
@@ -2131,23 +2187,25 @@ updategeom(void)
 			else
 				mons = createmon();
 		}
-		for (i = 0, m = mons; i < nn && m; m = m->next, i++)
+		for (i = 0, m = mons; i < nn && m; m = m->next, i++) {
+			m->num = i;
 			if (i >= n
 			|| unique[i].x_org != m->mx || unique[i].y_org != m->my
 			|| unique[i].width != m->mw || unique[i].height != m->mh)
 			{
 				dirty = 1;
-				m->num = i;
 				m->mx = m->wx = unique[i].x_org;
 				m->my = m->wy = unique[i].y_org;
 				m->mw = m->ww = unique[i].width;
 				m->mh = m->wh = unique[i].height;
 				updatebarpos(m);
 			}
+		}
 		for (i = nn; i < n; i++) {
 			for (m = mons; m && m->next; m = m->next);
+			if (!m)
+				break;
 			while ((c = m->clients)) {
-				dirty = 1;
 				m->clients = c->next;
 				detachstack(c);
 				c->mon = mons;
@@ -2157,6 +2215,7 @@ updategeom(void)
 			if (m == selmon)
 				selmon = mons;
 			cleanupmon(m);
+			dirty = 1;
 		}
 		free(unique);
 	} else
@@ -2164,6 +2223,7 @@ updategeom(void)
 	{
 		if (!mons)
 			mons = createmon();
+		mons->num = 0;
 		if (mons->mw != sw || mons->mh != sh) {
 			dirty = 1;
 			mons->mw = mons->ww = sw;
@@ -2175,6 +2235,8 @@ updategeom(void)
 		selmon = mons;
 		selmon = wintomon(root);
 	}
+	if (!selmon)
+		selmon = mons;
 	return dirty;
 }
 
@@ -2242,9 +2304,16 @@ updatesizehints(Client *c)
 void
 updatestatus(void)
 {
+	char old[sizeof stext];
+
+	if (!selmon)
+		return;
+	snprintf(old, sizeof old, "%s", stext);
 	if (!gettextprop(root, XA_WM_NAME, stext, sizeof(stext)))
-		strcpy(stext, "dwm-"VERSION);
+		snprintf(stext, sizeof stext, "%s", "dwm-"VERSION);
 	stext[sizeof(stext) - 1] = '\0';
+	if (!strcmp(old, stext))
+		return;
 	drawbar(selmon);
 	updatesystray();
 }
@@ -2269,7 +2338,7 @@ updatesystrayiconstate(Client *i, XPropertyEvent *ev)
 	long flags;
 	int code;
 
-	if (!showsystray || !i || ev->atom != xatom[XembedInfo] ||
+	if (!showsystray || !systray || !i || ev->atom != xatom[XembedInfo] ||
 			!getxembedflags(i->win, &flags))
 		return;
 	if ((flags & XEMBED_MAPPED) && !i->tags) {
@@ -2297,7 +2366,7 @@ updatesystray(void)
 	XWindowChanges wc;
 	Client *i;
 	Monitor *m = systraytomon(NULL);
-	unsigned int x, w = 1;
+	int x, w = 1;
 	long orientation = 0;
 
 	if (!showsystray || systrayfailed || !m)
@@ -2346,6 +2415,10 @@ updatesystray(void)
 	}
 	refresh_systray_icons = 0;
 	w = w ? w + systrayspacing : 1;
+	if (m->mw > 0 && w > m->mw)
+		w = m->mw;
+	if (w < 1)
+		w = 1;
 	x -= w;
 	wc.x = x; wc.y = m->by; wc.width = w; wc.height = bh;
 	wc.stack_mode = Above; wc.sibling = m->barwin;
@@ -2367,10 +2440,9 @@ updatetitle(Client *c)
 void
 updatewindowtype(Client *c)
 {
-	Atom state = getatomprop(c, netatom[NetWMState]);
 	Atom wtype = getatomprop(c, netatom[NetWMWindowType]);
 
-	if (state == netatom[NetWMFullscreen])
+	if (hasatomprop(c, netatom[NetWMState], netatom[NetWMFullscreen]))
 		setfullscreen(c, 1);
 	if (wtype == netatom[NetWMWindowTypeDialog])
 		c->isfloating = 1;
@@ -2398,12 +2470,13 @@ updatewmhints(Client *c)
 void
 view(const Arg *arg)
 {
-	int mask = arg->ui & TAGMASK;
+	unsigned int mask = arg->ui & TAGMASK;
 
-	if (mask == selmon->tagset[selmon->seltags] || mask == 0)
+	if (mask == selmon->tagset[selmon->seltags])
 		return;
 	selmon->seltags ^= 1;
-	selmon->tagset[selmon->seltags] = mask;
+	if (mask)
+		selmon->tagset[selmon->seltags] = mask;
 	focus(NULL);
 	arrange(selmon);
 }
@@ -2494,7 +2567,7 @@ systraydock(Window win)
 	Client *c;
 	long flags;
 
-	if (!win || wintosystrayicon(win))
+	if (!showsystray || !systray || !win || wintosystrayicon(win) || wintoclient(win))
 		return;
 	if (!XGetWindowAttributes(dpy, win, &wa)) {
 		wa.width = wa.height = systrayiconsize;
