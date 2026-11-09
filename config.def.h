@@ -46,7 +46,8 @@ static const int refreshrate = 120;  /* refresh rate (per second) for client mov
 
 static const Layout layouts[] = {
 	/* symbol     arrange function */
-	{ "[]=",      tile },    /* first entry is default */
+	{ "i3 ",       i3layout }, /* first entry is default */
+	{ "[]=",      tile },
 	{ "><>",      NULL },    /* no layout function means floating behavior */
 	{ "[M]",      monocle },
 };
@@ -84,6 +85,25 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_p,      spawn,          {.v = dmenucmd } },
 	{ MODKEY|ShiftMask,             XK_Return, spawn,          {.v = termcmd } },
 	{ MODKEY,                       XK_b,      togglebar,      {0} },
+	{ MODKEY,                       XK_Left,   focusdir,       {.i = DirLeft } },
+	{ MODKEY,                       XK_Right,  focusdir,       {.i = DirRight } },
+	{ MODKEY,                       XK_Up,     focusdir,       {.i = DirUp } },
+	{ MODKEY,                       XK_Down,   focusdir,       {.i = DirDown } },
+	{ MODKEY|ShiftMask,             XK_Left,   movedir,        {.i = DirLeft } },
+	{ MODKEY|ShiftMask,             XK_Right,  movedir,        {.i = DirRight } },
+	{ MODKEY|ShiftMask,             XK_Up,     movedir,        {.i = DirUp } },
+	{ MODKEY|ShiftMask,             XK_Down,   movedir,        {.i = DirDown } },
+	{ MODKEY|ControlMask,           XK_Left,   resizenode,     {.i = DirLeft } },
+	{ MODKEY|ControlMask,           XK_Right,  resizenode,     {.i = DirRight } },
+	{ MODKEY|ControlMask,           XK_Up,     resizenode,     {.i = DirUp } },
+	{ MODKEY|ControlMask,           XK_Down,   resizenode,     {.i = DirDown } },
+	{ MODKEY|ShiftMask,             XK_h,      setsplit,       {.i = NodeSplitH } },
+	{ MODKEY|ShiftMask,             XK_v,      setsplit,       {.i = NodeSplitV } },
+	{ MODKEY,                       XK_e,      togglesplit,    {0} },
+	{ MODKEY,                       XK_w,      setcontainer,   {.i = NodeTabbed } },
+	{ MODKEY,                       XK_s,      setcontainer,   {.i = NodeStacked } },
+	{ MODKEY|ShiftMask,             XK_s,      setcontainer,   {.i = NodeSplitH } },
+	{ MODKEY|ShiftMask,             XK_t,      setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                       XK_j,      focusstack,     {.i = +1 } },
 	{ MODKEY,                       XK_k,      focusstack,     {.i = -1 } },
 	{ MODKEY,                       XK_i,      incnmaster,     {.i = +1 } },
@@ -93,9 +113,9 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_Return, zoom,           {0} },
 	{ MODKEY,                       XK_Tab,    view,           {0} },
 	{ MODKEY|ShiftMask,             XK_c,      killclient,     {0} },
-	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[0]} },
-	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[1]} },
-	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[2]} },
+	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[1]} },
+	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[2]} },
+	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[3]} },
 	{ MODKEY,                       XK_space,  setlayout,      {0} },
 	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
 	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
@@ -121,7 +141,7 @@ static const Key keys[] = {
 static const Button buttons[] = {
 	/* click                event mask      button          function        argument */
 	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0} },
-	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[2]} },
+	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[3]} },
 	{ ClkWinTitle,          0,              Button2,        zoom,           {0} },
 	{ ClkStatusText,        0,              Button2,        spawn,          {.v = termcmd } },
 	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0} },
