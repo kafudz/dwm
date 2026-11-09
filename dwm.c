@@ -70,6 +70,8 @@ enum { NetSupported, NetWMName, NetWMState, NetWMCheck,
        NetWMWindowTypeDialog, NetClientList, NetLast }; /* EWMH atoms */
 enum { Manager, Xembed, XembedInfo, XLast }; /* Xembed atoms */
 enum { WMProtocols, WMDelete, WMState, WMTakeFocus, WMLast }; /* default atoms */
+enum { NodeSplitH, NodeSplitV, NodeTabbed, NodeStacked }; /* container types */
+enum { DirLeft, DirRight, DirUp, DirDown }; /* directions */
 enum { ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle,
        ClkClientWin, ClkRootWin, ClkLast }; /* clicks */
 
@@ -90,6 +92,16 @@ typedef struct {
 
 typedef struct Monitor Monitor;
 typedef struct Client Client;
+typedef struct Node Node;
+
+/* i3-style container tree: inner nodes are containers, leaves hold clients */
+struct Node {
+	Node *parent, *first, *last, *prev, *next;
+	Node *focus;          /* most recently focused child (containers only) */
+	Client *c;            /* non-NULL for leaves */
+	int type;             /* NodeSplitH, NodeSplitV, NodeTabbed, NodeStacked */
+	float weight;         /* share of the parent's space (split containers) */
+};
 
 struct Client {
 	char name[256];
@@ -100,6 +112,7 @@ struct Client {
 	int bw, oldbw;
 	unsigned int tags;
 	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen;
+	Node *node;
 	Client *next;
 	Client *snext;
 	Monitor *mon;
@@ -131,6 +144,8 @@ struct Monitor {
 	unsigned int tagset[2];
 	int showbar;
 	int topbar;
+	Node *root;           /* i3 layout container tree */
+	int splitnext;        /* pending split for the next window: -1 none, else NodeSplitH/V */
 	Client *clients;
 	Client *sel;
 	Client *stack;
@@ -183,6 +198,13 @@ static void focus(Client *c);
 static void focusin(XEvent *e);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
+static void focusdir(const Arg *arg);
+static void movedir(const Arg *arg);
+static void resizenode(const Arg *arg);
+static void setsplit(const Arg *arg);
+static void setcontainer(const Arg *arg);
+static void togglesplit(const Arg *arg);
+static void i3layout(Monitor *m);
 static Atom getatomprop(Client *c, Atom prop);
 static int hasatomprop(Client *c, Atom prop, Atom atom);
 static int getrootptr(int *x, int *y);
@@ -262,6 +284,14 @@ static int xerror(Display *dpy, XErrorEvent *ee);
 static int xerrordummy(Display *dpy, XErrorEvent *ee);
 static int xerrorstart(Display *dpy, XErrorEvent *ee);
 static void zoom(const Arg *arg);
+
+static Node *nodenew(int type);
+static void nodefree(Node *n);
+static void nodefocus(Client *c);
+static int nodevisible(Node *n);
+static void treeadd(Client *c);
+static void treeremove(Client *c);
+static int drawtabs(Monitor *m, int x, int w);
 
 /* variables */
 static Systray *systray = NULL;
@@ -577,6 +607,7 @@ cleanupmon(Monitor *mon)
 		XUnmapWindow(dpy, mon->barwin);
 		XDestroyWindow(dpy, mon->barwin);
 	}
+	nodefree(mon->root);
 	free(mon);
 }
 
@@ -724,6 +755,7 @@ createmon(void)
 	m->nmaster = nmaster;
 	m->showbar = showbar;
 	m->topbar = topbar;
+	m->splitnext = -1;
 	m->lt[0] = &layouts[0];
 	m->lt[1] = &layouts[1 % LENGTH(layouts)];
 	snprintf(m->ltsymbol, sizeof(m->ltsymbol), "%s", layouts[0].symbol);
@@ -836,7 +868,9 @@ drawbar(Monitor *m)
 	drw_setscheme(drw, scheme[SchemeNorm]);
 	x = drw_text(drw, x, 0, w, bh, lrpad / 2, m->ltsymbol, 0);
 	if ((w = m->ww - tw - stw - x) > bh) {
-		if (m->sel) {
+		if (m->sel && m->lt[m->sellt]->arrange == i3layout && drawtabs(m, x, w))
+			;
+		else if (m->sel) {
 			drw_setscheme(drw, scheme[m == selmon ? SchemeSel : SchemeNorm]);
 			drw_text(drw, x, 0, w, bh, lrpad / 2, m->sel->name, 0);
 			if (m->sel->isfloating)
@@ -906,6 +940,7 @@ focus(Client *c)
 			seturgent(c, 0);
 		detachstack(c);
 		attachstack(c);
+		nodefocus(c);
 		grabbuttons(c, 1);
 		XSetWindowBorder(dpy, c->win, scheme[SchemeSel][ColBorder].pixel);
 		setfocus(c);
@@ -962,7 +997,10 @@ focusstack(const Arg *arg)
 	}
 	if (c) {
 		focus(c);
-		restack(selmon);
+		if (selmon->lt[selmon->sellt]->arrange == i3layout)
+			arrange(selmon);
+		else
+			restack(selmon);
 	}
 }
 
@@ -1250,6 +1288,7 @@ manage(Window w, XWindowAttributes *wa)
 	}
 	attachaside(c);
 	attachstack(c);
+	treeadd(c);
 	XChangeProperty(dpy, root, netatom[NetClientList], XA_WINDOW, 32, PropModeAppend,
 		(unsigned char *) &(c->win), 1);
 	XMoveResizeWindow(dpy, c->win, c->x + 2 * sw, c->y, c->w, c->h);
@@ -1678,10 +1717,12 @@ sendmon(Client *c, Monitor *m)
 	unfocus(c, 1);
 	detach(c);
 	detachstack(c);
+	treeremove(c);
 	c->mon = m;
 	c->tags = m->tagset[m->seltags];
 	attachaside(c);
 	attachstack(c);
+	treeadd(c);
 	if (c->isfullscreen) {
 		int ox = c->oldx, oy = c->oldy;
 		int ow = c->oldw, oh = c->oldh;
@@ -2057,6 +2098,7 @@ unmanage(Client *c, int destroyed)
 
 	detach(c);
 	detachstack(c);
+	treeremove(c);
 	if (!destroyed) {
 		wc.border_width = c->oldbw;
 		XGrabServer(dpy);
@@ -2208,9 +2250,11 @@ updategeom(void)
 			while ((c = m->clients)) {
 				m->clients = c->next;
 				detachstack(c);
+				treeremove(c);
 				c->mon = mons;
 				attachaside(c);
 				attachstack(c);
+				treeadd(c);
 			}
 			if (m == selmon)
 				selmon = mons;
@@ -2614,6 +2658,471 @@ systraytomon(Monitor *m)
 	if (systraypinningfailfirst && n < (int)systraypinning)
 		return mons;
 	return t;
+}
+
+/* ---- i3-style container tree ----------------------------------------------
+ * Every monitor owns a tree (m->root) holding all of its clients. Tags only
+ * filter what is visible: containers without visible tiled clients take no
+ * space, so splits survive tag switches. Floating clients stay in the tree
+ * but are skipped by the layout.
+ */
+Node *
+nodenew(int type)
+{
+	Node *n = ecalloc(1, sizeof(Node));
+
+	n->type = type;
+	n->weight = 1;
+	return n;
+}
+
+void
+nodefree(Node *n)
+{
+	Node *k, *next;
+
+	for (k = n ? n->first : NULL; k; k = next) {
+		next = k->next;
+		nodefree(k);
+	}
+	free(n);
+}
+
+static void
+nodeunlink(Node *n)
+{
+	Node *p = n->parent;
+
+	if (!p)
+		return;
+	if (n->prev)
+		n->prev->next = n->next;
+	else
+		p->first = n->next;
+	if (n->next)
+		n->next->prev = n->prev;
+	else
+		p->last = n->prev;
+	if (p->focus == n)
+		p->focus = NULL;
+	n->parent = n->prev = n->next = NULL;
+}
+
+/* insert n into p after `after` (NULL: as first child) */
+static void
+nodeinsert(Node *p, Node *after, Node *n)
+{
+	n->parent = p;
+	n->prev = after;
+	n->next = after ? after->next : p->first;
+	if (n->prev)
+		n->prev->next = n;
+	else
+		p->first = n;
+	if (n->next)
+		n->next->prev = n;
+	else
+		p->last = n;
+}
+
+/* remove empty containers and collapse non-root containers with one child */
+static void
+nodeprune(Node *p)
+{
+	Node *pp, *ch;
+	int wasfocus;
+
+	while (p && p->parent) {
+		pp = p->parent;
+		if (!p->first) {
+			nodeunlink(p);
+			free(p);
+			p = pp;
+			continue;
+		}
+		if (p->first == p->last) {
+			ch = p->first;
+			nodeunlink(ch);
+			ch->weight = p->weight;
+			nodeinsert(pp, p->prev, ch);
+			wasfocus = pp->focus == p;
+			nodeunlink(p);
+			free(p);
+			if (wasfocus)
+				pp->focus = ch;
+		}
+		break;
+	}
+}
+
+int
+nodevisible(Node *n)
+{
+	Node *k;
+	int cnt = 0;
+
+	if (!n)
+		return 0;
+	if (n->c)
+		return ISVISIBLE(n->c) && !n->c->isfloating;
+	for (k = n->first; k; k = k->next)
+		cnt += nodevisible(k);
+	return cnt;
+}
+
+static Node *
+nodefirstvisible(Node *n)
+{
+	Node *k;
+
+	for (k = n->first; k && !nodevisible(k); k = k->next);
+	return k;
+}
+
+/* the child to show/focus inside a container: last focused, else first */
+static Node *
+nodeactive(Node *n)
+{
+	if (n->focus && nodevisible(n->focus))
+		return n->focus;
+	return nodefirstvisible(n);
+}
+
+static Client *
+nodeleaf(Node *n)
+{
+	while (n && !n->c)
+		n = nodeactive(n);
+	return n ? n->c : NULL;
+}
+
+static int
+nodecontains(Node *anc, Node *n)
+{
+	for (; n && n != anc; n = n->parent);
+	return n != NULL;
+}
+
+static Node *
+nodeadj(Node *n, int fwd)
+{
+	Node *s;
+
+	for (s = fwd ? n->next : n->prev; s && !nodevisible(s); s = fwd ? s->next : s->prev);
+	return s;
+}
+
+void
+nodefocus(Client *c)
+{
+	Node *n;
+
+	for (n = c->node; n && n->parent; n = n->parent)
+		n->parent->focus = n;
+}
+
+void
+treeadd(Client *c)
+{
+	Monitor *m = c->mon;
+	Node *n, *ref, *p, *w, *k;
+
+	if (c->node)
+		return;
+	if (!m->root)
+		m->root = nodenew(NodeSplitH);
+	n = nodenew(0);
+	n->c = c;
+	c->node = n;
+	ref = (m->sel && m->sel != c && m->sel->mon == m) ? m->sel->node : NULL;
+	if (!ref) {
+		nodeinsert(m->root, m->root->last, n);
+		return;
+	}
+	p = ref->parent;
+	if (m->splitnext >= 0) {
+		if (p->first == p->last)
+			p->type = m->splitnext;
+		else if (p->type != m->splitnext) {
+			w = nodenew(m->splitnext);
+			w->weight = ref->weight;
+			nodeinsert(p, ref->prev, w);
+			nodeunlink(ref);
+			nodeinsert(w, NULL, ref);
+			ref->weight = 1;
+			p = w;
+		}
+		m->splitnext = -1;
+	}
+	nodeinsert(p, ref, n);
+	for (k = p->first; k; k = k->next)
+		k->weight = 1;
+}
+
+void
+treeremove(Client *c)
+{
+	Node *n = c->node, *p;
+
+	if (!n)
+		return;
+	p = n->parent;
+	nodeunlink(n);
+	free(n);
+	c->node = NULL;
+	nodeprune(p);
+}
+
+static void
+hidenode(Node *n)
+{
+	Node *k;
+
+	if (n->c) {
+		if (ISVISIBLE(n->c) && !n->c->isfloating)
+			XMoveWindow(dpy, n->c->win, WIDTH(n->c) * -2, n->c->y);
+		return;
+	}
+	for (k = n->first; k; k = k->next)
+		hidenode(k);
+}
+
+static void
+layoutnode(Node *n, int x, int y, int w, int h)
+{
+	Node *k, *act;
+	Client *c;
+	int horiz, total, pos, sz, cnt = 0;
+	float sum = 0;
+
+	if (n->c) {
+		c = n->c;
+		resize(c, x, y, w - 2 * c->bw, h - 2 * c->bw, 0);
+		return;
+	}
+	if (n->type == NodeTabbed || n->type == NodeStacked) {
+		act = nodeactive(n);
+		for (k = n->first; k; k = k->next)
+			if (k == act)
+				layoutnode(k, x, y, w, h);
+			else if (nodevisible(k))
+				hidenode(k);
+		return;
+	}
+	for (k = n->first; k; k = k->next)
+		if (nodevisible(k)) {
+			cnt++;
+			sum += k->weight;
+		}
+	if (!cnt || sum <= 0)
+		return;
+	horiz = n->type == NodeSplitH;
+	total = horiz ? w : h;
+	for (pos = 0, k = n->first; k; k = k->next) {
+		if (!nodevisible(k))
+			continue;
+		sz = --cnt ? (int)(total * k->weight / sum) : total - pos;
+		if (horiz)
+			layoutnode(k, x + pos, y, sz, h);
+		else
+			layoutnode(k, x, y + pos, w, sz);
+		pos += sz;
+	}
+}
+
+void
+i3layout(Monitor *m)
+{
+	static const char letters[] = "hvts";
+	char pend[3] = "";
+	Node *p;
+
+	if (!m->root || !nodevisible(m->root))
+		return;
+	layoutnode(m->root, m->wx, m->wy, m->ww, m->wh);
+	p = m->sel && m->sel->node && m->sel->node->parent ? m->sel->node->parent : m->root;
+	if (m->splitnext >= 0) {
+		pend[0] = '>';
+		pend[1] = letters[m->splitnext];
+	}
+	snprintf(m->ltsymbol, sizeof m->ltsymbol, "%s%c%s", m->lt[m->sellt]->symbol, letters[p->type], pend);
+}
+
+/* nearest tabbed/stacked ancestor of a client */
+static Node *
+tabparent(Client *c)
+{
+	Node *n;
+
+	for (n = c->node ? c->node->parent : NULL; n; n = n->parent)
+		if (n->type == NodeTabbed || n->type == NodeStacked)
+			return n;
+	return NULL;
+}
+
+/* draw the tab list of the focused tabbed/stacked container in the bar */
+int
+drawtabs(Monitor *m, int x, int w)
+{
+	Node *t, *k;
+	Client *c;
+	int n = 0, i = 0, tw, cw, active;
+
+	if (!(t = tabparent(m->sel)))
+		return 0;
+	for (k = t->first; k; k = k->next)
+		if (nodevisible(k))
+			n++;
+	if (n < 2)
+		return 0;
+	tw = w / n;
+	for (k = t->first; k; k = k->next) {
+		if (!nodevisible(k) || !(c = nodeleaf(k)))
+			continue;
+		active = nodecontains(k, m->sel->node);
+		cw = i == n - 1 ? w - i * tw : tw;
+		drw_setscheme(drw, scheme[m == selmon && active ? SchemeSel : SchemeNorm]);
+		drw_text(drw, x + i * tw, 0, cw, bh, lrpad / 2, c->name, m != selmon && active);
+		i++;
+	}
+	return 1;
+}
+
+static int
+orientmatch(int type, int dir, int splitonly)
+{
+	if (dir == DirLeft || dir == DirRight)
+		return type == NodeSplitH || (!splitonly && type == NodeTabbed);
+	return type == NodeSplitV || (!splitonly && type == NodeStacked);
+}
+
+/* find the closest ancestor of c (cur) with a visible sibling (sib) in direction dir */
+static int
+findadj(Client *c, int dir, Node **cur, Node **sib)
+{
+	Node *n, *s;
+	int fwd = dir == DirRight || dir == DirDown;
+
+	if (!c || !c->node)
+		return 0;
+	for (n = c->node; n->parent; n = n->parent) {
+		if (!orientmatch(n->parent->type, dir, 0))
+			continue;
+		if ((s = nodeadj(n, fwd))) {
+			*cur = n;
+			*sib = s;
+			return 1;
+		}
+	}
+	return 0;
+}
+
+static int
+i3active(void)
+{
+	Client *c = selmon->sel;
+
+	return selmon->lt[selmon->sellt]->arrange == i3layout
+		&& c && c->node && !c->isfloating && !(c->isfullscreen && lockfullscreen);
+}
+
+void
+focusdir(const Arg *arg)
+{
+	Node *n, *s;
+
+	if (!i3active() || !findadj(selmon->sel, arg->i, &n, &s))
+		return;
+	while (!s->c)
+		s = nodeactive(s);
+	focus(s->c);
+	arrange(selmon);
+}
+
+void
+movedir(const Arg *arg)
+{
+	Client *c = selmon->sel;
+	Node *n, *s, *leaf, *old;
+	int fwd = arg->i == DirRight || arg->i == DirDown;
+
+	if (!i3active() || !findadj(c, arg->i, &n, &s))
+		return;
+	leaf = c->node;
+	old = leaf->parent;
+	nodeunlink(leaf);
+	if (n != leaf)                    /* leave the nested container */
+		nodeinsert(n->parent, fwd ? n : n->prev, leaf);
+	else if (s->c)                    /* swap with a sibling window */
+		nodeinsert(s->parent, fwd ? s : s->prev, leaf);
+	else                              /* enter a sibling container */
+		nodeinsert(s, fwd ? NULL : s->last, leaf);
+	leaf->weight = 1;
+	nodeprune(old);
+	focus(c);
+	arrange(selmon);
+}
+
+void
+resizenode(const Arg *arg)
+{
+	Node *n;
+	int horiz = arg->i == DirLeft || arg->i == DirRight;
+	int grow = arg->i == DirRight || arg->i == DirDown;
+
+	if (!i3active())
+		return;
+	for (n = selmon->sel->node; n->parent; n = n->parent) {
+		if (n->parent->type != (horiz ? NodeSplitH : NodeSplitV))
+			continue;
+		if (!nodeadj(n, 0) && !nodeadj(n, 1))
+			continue;
+		n->weight = grow ? n->weight * 1.15f + 0.05f : MAX(0.1f, n->weight / 1.15f);
+		arrange(selmon);
+		return;
+	}
+}
+
+void
+setsplit(const Arg *arg)
+{
+	Client *c = selmon->sel;
+	Node *p;
+
+	if (selmon->lt[selmon->sellt]->arrange != i3layout)
+		return;
+	if (c && c->node && (p = c->node->parent) && p->first == p->last) {
+		p->type = arg->i;
+		selmon->splitnext = -1;
+	} else if (!c && selmon->root) {
+		selmon->root->type = arg->i;
+	} else
+		selmon->splitnext = arg->i;
+	arrange(selmon);
+}
+
+void
+setcontainer(const Arg *arg)
+{
+	Client *c = selmon->sel;
+
+	if (!i3active())
+		return;
+	c->node->parent->type = arg->i;
+	nodefocus(c);
+	arrange(selmon);
+}
+
+void
+togglesplit(const Arg *arg)
+{
+	Node *p;
+
+	if (!i3active())
+		return;
+	p = selmon->sel->node->parent;
+	p->type = p->type == NodeSplitH ? NodeSplitV : NodeSplitH;
+	arrange(selmon);
 }
 
 void

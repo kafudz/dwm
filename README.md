@@ -63,6 +63,21 @@ Feel free to read/copy it, but expect to edit `config.h` for your own system.
 
 ## What’s included
 
+- **i3-style containers** (default layout `i3`): manual splits plus tabbed/stacked
+  containers, directional focus/move/resize. Tags only filter visibility, so
+  splits survive tag switches. Tab titles of the focused tabbed/stacked container
+  are shown in the bar. The old layouts (`tile`, floating, monocle) remain on
+  `Mod+t`, `Mod+f`, `Mod+m`; `Mod+Shift+t` returns to `i3`.
+
+  | Keys | Action |
+  |------|--------|
+  | `Mod+Arrows` | focus left/right/up/down (tree-aware, switches tabs) |
+  | `Mod+Shift+Arrows` | move window in that direction (enters/leaves containers) |
+  | `Mod+Ctrl+Arrows` | grow/shrink focused container |
+  | `Mod+Shift+h` / `Mod+Shift+v` | next window opens split horizontally / vertically (`>h`/`>v` in the layout symbol) |
+  | `Mod+e` | toggle split orientation of the focused container |
+  | `Mod+w` / `Mod+s` / `Mod+Shift+s` | tabbed / stacked / back to horizontal split |
+
 - **Systray support** (with spacing and icon size options)
 - **Xft font rendering** — uses `VictorMono Nerd Font` by default
 - **Media keys** for volume (via `pactl`) and screen brightness (via `brightnessctl`)
