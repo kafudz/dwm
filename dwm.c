@@ -182,6 +182,7 @@ static void checkotherwm(void);
 static void cleanup(void);
 static void cleanupmon(Monitor *mon);
 static void clientmessage(XEvent *e);
+static void centerclient(Client *c);
 static void configure(Client *c);
 static void configurenotify(XEvent *e);
 static void configurerequest(XEvent *e);
@@ -633,6 +634,13 @@ clientmessage(XEvent *e)
 		if (c != selmon->sel && !c->isurgent)
 			seturgent(c, 1);
 	}
+}
+
+void
+centerclient(Client *c)
+{
+	c->x = MAX(c->mon->wx + (c->mon->ww - WIDTH(c)) / 2, c->mon->wx);
+	c->y = MAX(c->mon->wy + (c->mon->wh - HEIGHT(c)) / 2, c->mon->wy);
 }
 
 void
@@ -1278,12 +1286,8 @@ manage(Window w, XWindowAttributes *wa)
 	if (c->isfloating) {
 		/* center pop-ups (dialogs, transients, fixed-size and rule-floated
 		 * windows) on their monitor; fullscreen windows keep their geometry */
-		if (!c->isfullscreen) {
-			c->x = c->mon->wx + (c->mon->ww - WIDTH(c)) / 2;
-			c->y = c->mon->wy + (c->mon->wh - HEIGHT(c)) / 2;
-			c->x = MAX(c->x, c->mon->wx);
-			c->y = MAX(c->y, c->mon->wy);
-		}
+		if (!c->isfullscreen)
+			centerclient(c);
 		XRaiseWindow(dpy, c->win);
 	}
 	attachaside(c);
@@ -2040,6 +2044,9 @@ togglefloating(const Arg *arg)
 	if (selmon->sel->isfullscreen)
 		return;
 	selmon->sel->isfloating = !selmon->sel->isfloating || selmon->sel->isfixed;
+	/* center when toggled by key/button; the mouse drag/resize path passes NULL */
+	if (selmon->sel->isfloating && arg)
+		centerclient(selmon->sel);
 	if (selmon->sel->isfloating)
 		resize(selmon->sel, selmon->sel->x, selmon->sel->y,
 			selmon->sel->w, selmon->sel->h, 0);
