@@ -11,9 +11,9 @@ static const int systraypinningfailfirst  = 1;        /* 1: if pinning fails, di
 static const int showsystray              = 1;        /* 0 means no systray */
 static const int showbar                  = 1;        /* 0 means no bar */
 static const int topbar                   = 1;        /* 0 means bottom bar */
-static const int barheight                = 0;        /* bar height in px, 0 uses font height + 2 */
-static const char *fonts[]                = { "VictorMono Nerd Font:size=11" };
-static const char dmenufont[]             = "VictorMono Nerd Font:size=11";
+static const int barheight                = 27;        /* bar height in px, 0 uses font height + 2 */
+static const char *fonts[]                = { "JetBrainsMono Nerd Font:size=11" };
+static const char dmenufont[]             = "JetBrainsMono Nerd Font:size=11";
 static const char col_gray1[]             = "#121314";
 static const char col_gray2[]             = "#444444";
 static const char col_gray3[]             = "#bbbbbb";
@@ -78,9 +78,9 @@ static const char *dimmer[]   = { "brightnessctl", "set", "10%-", NULL };
 
 /* commands */
 static char dmenumon[8]; /* component of dmenucmd, manipulated in spawn() */
-static const char *dmenucmd[]         = { "dmenu_run", "-i", "-p", "EXEC : ", "-m", dmenumon, "-fn", dmenufont, "-nb", col_gray1, "-nf", col_gray3, "-sb", col_cyan, "-sf", col_gray4, NULL };
+static const char *dmenucmd[]         = { "dmenu_run", "-C","-i", "-L", "-l", "10", "-pp", "30", "-ip", "30", "-z", "300", "-x", "840", "-y", "250", "-op", "95", "-bw", "1", "-nb", "#101113", NULL };
 static const char *termcmd[]          = { "st", NULL };
-static const char *dmenudesktopcmd[]  = { "dmenu_apps", NULL };
+static const char *dmenudesktopcmd[]  = { "dmenu_apps", "-C","-i", "-L", "-l", "10", "-pp", "30", "-ip", "30", "-z", "300", "-x", "840", "-y", "250", "-op", "95", "-bw", "1", "-nb", "#101113", NULL };
 static const char *sysmenucmd[]       = { "sysmenu", NULL };
 
 static const Key keys[] = {
@@ -155,7 +155,7 @@ static const Button buttons[] = {
 	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0} },
 	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[3]} },
 	{ ClkWinTitle,          0,              Button2,        zoom,           {0} },
-	{ ClkStatusText,        0,              Button2,        spawn,          {.v = termcmd } },
+	{ ClkStatusText,        0,              Button3,        spawn,          {.v = termcmd } },
 	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0} },
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
 	{ ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0} },
