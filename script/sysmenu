@@ -6,11 +6,11 @@ FONT="VictorMono Nerd Font:size=11"
 
 # Ask for confirmation before destructive actions (returns 0 on "Yes")
 confirm() {
-    [ "$(printf 'No\nYes\n' | dmenu -i -p "$1?")" = "Yes" ]
+    [ "$(printf 'No\nYes\n' | dmenu -C -i -L -l 10 -pp 30 -ip 30 -z 300 -x 840 -y 250 -op 95 -bw 1 -nb '#101113' -p "$1?")" = "Yes" ]
 }
 
 choice=$(printf '%s\n' "Log out" "Reboot" "Shutdown" "Suspend" "Hibernate" "Cancel" |
-    dmenu -i -fn "$FONT" -p "System :") || exit 0
+    dmenu -C -i -L -l 10 -pp 30 -ip 30 -z 300 -x 840 -y 250 -op 95 -bw 1 -nb '#101113' -fn "$FONT") || exit 0
 
 case "$choice" in
     "Log out")
