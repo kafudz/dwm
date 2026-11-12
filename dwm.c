@@ -1874,7 +1874,9 @@ setup(void)
 	if (!drw_fontset_create(drw, fonts, LENGTH(fonts)))
 		die("no fonts could be loaded.");
 	lrpad = drw->fonts->h;
-	bh = drw->fonts->h + 2;
+	bh = barheight > 0 ? barheight : drw->fonts->h + 2;
+	if (bh < drw->fonts->h)
+		bh = drw->fonts->h;
 	updategeom();
 	utf8string = XInternAtom(dpy, "UTF8_STRING", False);
 	wmatom[WMProtocols] = XInternAtom(dpy, "WM_PROTOCOLS", False);
