@@ -13,7 +13,7 @@ static const int showbar                  = 1;        /* 0 means no bar */
 static const int topbar                   = 1;        /* 0 means bottom bar */
 static const int barheight                = 29;        /* bar height in px, 0 uses font height + 2 */
 static const char *fonts[]                = { "JetBrainsMono Nerd Font:size=12" };
-static const char dmenufont[]             = "JetBrainsMono Nerd Font:size=12";
+static const char dmenufont[]             = "JetBrainsMono Nerd Font:size=11";
 static const char col_gray1[]             = "#121314";
 static const char col_gray2[]             = "#444444";
 static const char col_gray3[]             = "#bbbbbb";
@@ -79,9 +79,9 @@ static const char *dimmer[]   = { "brightnessctl", "set", "10%-", NULL };
 
 /* commands */
 static char dmenumon[8]; /* component of dmenucmd, manipulated in spawn() */
-static const char *dmenucmd[]         = { "dmenu_run", "-C","-i", "-L", "-l", "10", "-pp", "30", "-ip", "30", "-z", "300", "-x", "840", "-y", "250", "-op", "95", "-bw", "1", "-nb", "#101113", NULL };
+static const char *dmenucmd[]         = { "dmenu_run", "-C","-i", "-L", "-l", "10", "-pp", "30", "-ip", "30", "-z", "400", "-x", "790", "-y", "220", "-op", "95", "-bw", "1", "-nb", "#101113", NULL };
 static const char *termcmd[]          = { "st", NULL };
-static const char *dmenudesktopcmd[]  = { "dmenu_apps", "-C","-i", "-L", "-l", "10", "-pp", "30", "-ip", "30", "-z", "300", "-x", "840", "-y", "250", "-op", "95", "-bw", "1", "-nb", "#101113", NULL };
+static const char *dmenudesktopcmd[]  = { "dmenu_apps", "-C","-i", "-L", "-l", "10", "-pp", "30", "-ip", "30", "-z", "400", "-x", "790", "-y", "220", "-op", "95", "-bw", "1", "-nb", "#101113", NULL };
 static const char *sysmenucmd[]       = { "sysmenu", NULL };
 
 static const Key keys[] = {
