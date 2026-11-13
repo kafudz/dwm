@@ -206,7 +206,6 @@ static void setsplit(const Arg *arg);
 static void setcontainer(const Arg *arg);
 static void togglesplit(const Arg *arg);
 static void i3layout(Monitor *m);
-static Atom getatomprop(Client *c, Atom prop);
 static int hasatomprop(Client *c, Atom prop, Atom atom);
 static int getrootptr(int *x, int *y);
 static long getstate(Window w);
@@ -434,12 +433,25 @@ applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact)
 			*w -= *w % c->incw;
 		if (c->inch)
 			*h -= *h % c->inch;
-		*w = MAX(*w + c->basew, c->minw);
-		*h = MAX(*h + c->baseh, c->minh);
+		/* Size hints are supplied by the client.  Widen the additions so
+		 * that extreme base sizes cannot overflow the signed int fields. */
+		{
+			long long nw = (long long)*w + c->basew;
+			long long nh = (long long)*h + c->baseh;
+
+			*w = nw > INT_MAX ? INT_MAX : (int)nw;
+			*h = nh > INT_MAX ? INT_MAX : (int)nh;
+		}
+		*w = MAX(*w, c->minw);
+		*h = MAX(*h, c->minh);
 		if (c->maxw)
 			*w = MIN(*w, c->maxw);
 		if (c->maxh)
 			*h = MIN(*h, c->maxh);
+		/* X window dimensions are CARD16.  Keep the internal geometry in
+		 * that range so later WIDTH()/HEIGHT() arithmetic cannot overflow. */
+		*w = MIN(*w, 65535);
+		*h = MIN(*h, 65535);
 	}
 	return *x != c->x || *y != c->y || *w != c->w || *h != c->h;
 }
@@ -1012,23 +1024,6 @@ focusstack(const Arg *arg)
 	}
 }
 
-Atom
-getatomprop(Client *c, Atom prop)
-{
-	int format;
-	unsigned long nitems, dl;
-	unsigned char *p = NULL;
-	Atom da, atom = None;
-
-	if (XGetWindowProperty(dpy, c->win, prop, 0L, sizeof atom, False, XA_ATOM,
-		&da, &format, &nitems, &dl, &p) == Success && p) {
-		if (da == XA_ATOM && nitems > 0 && format == 32)
-			atom = *(long *)p;
-		XFree(p);
-	}
-	return atom;
-}
-
 int
 hasatomprop(Client *c, Atom prop, Atom atom)
 {
@@ -1250,6 +1245,10 @@ manage(Window w, XWindowAttributes *wa)
 	Window trans = None;
 	XWindowChanges wc;
 
+	/* InputOnly windows have no border or background; border/background
+	 * requests on them raise BadMatch and would terminate the WM. */
+	if (wa->class == InputOnly)
+		return;
 	c = ecalloc(1, sizeof(Client));
 	c->win = w;
 	c->x = c->oldx = wa->x;
@@ -1300,6 +1299,10 @@ manage(Window w, XWindowAttributes *wa)
 	if (c->mon == selmon)
 		unfocus(selmon->sel, 0);
 	c->mon->sel = c;
+	/* the tree's "last focused" pointers must already point at the new leaf
+	 * when the i3 layout runs, otherwise a tabbed/stacked container keeps
+	 * showing the previously focused tab until the next arrange */
+	nodefocus(c);
 	arrange(c->mon);
 	XMapWindow(dpy, c->win);
 	focus(NULL);
@@ -2493,11 +2496,9 @@ updatetitle(Client *c)
 void
 updatewindowtype(Client *c)
 {
-	Atom wtype = getatomprop(c, netatom[NetWMWindowType]);
-
 	if (hasatomprop(c, netatom[NetWMState], netatom[NetWMFullscreen]))
 		setfullscreen(c, 1);
-	if (wtype == netatom[NetWMWindowTypeDialog])
+	if (hasatomprop(c, netatom[NetWMWindowType], netatom[NetWMWindowTypeDialog]))
 		c->isfloating = 1;
 }
 
@@ -2584,6 +2585,7 @@ xerror(Display *dpy, XErrorEvent *ee)
 	|| (ee->request_code == X_PolyFillRectangle && ee->error_code == BadDrawable)
 	|| (ee->request_code == X_PolySegment && ee->error_code == BadDrawable)
 	|| (ee->request_code == X_ConfigureWindow && ee->error_code == BadMatch)
+	|| (ee->request_code == X_ConfigureWindow && ee->error_code == BadValue)
 	|| (ee->request_code == X_GrabButton && ee->error_code == BadAccess)
 	|| (ee->request_code == X_GrabKey && ee->error_code == BadAccess)
 	|| (ee->request_code == X_CopyArea && ee->error_code == BadDrawable))
@@ -2618,14 +2620,19 @@ systraydock(Window win)
 	XWindowAttributes wa;
 	XSetWindowAttributes swa;
 	Client *c;
+	Monitor *m;
 	long flags;
 
-	if (!showsystray || !systray || !win || wintosystrayicon(win) || wintoclient(win))
+	if (!showsystray || !systray || !win || win == root || win == wmcheckwin
+	|| win == systray->win || wintosystrayicon(win) || wintoclient(win))
 		return;
-	if (!XGetWindowAttributes(dpy, win, &wa)) {
-		wa.width = wa.height = systrayiconsize;
-		wa.border_width = 0;
-	}
+	for (m = mons; m; m = m->next)
+		if (win == m->barwin)
+			return;
+	/* Only dock real, same-screen InputOutput windows: reparenting the root
+	 * or an InputOnly window (or one that vanished) raises a fatal X error. */
+	if (!XGetWindowAttributes(dpy, win, &wa) || wa.root != root || wa.class == InputOnly)
+		return;
 	c = ecalloc(1, sizeof(Client));
 	c->win = win;
 	c->mon = selmon;
@@ -2835,6 +2842,7 @@ treeadd(Client *c)
 {
 	Monitor *m = c->mon;
 	Node *n, *ref, *p, *w, *k;
+	int wasfocus;
 
 	if (c->node)
 		return;
@@ -2853,12 +2861,17 @@ treeadd(Client *c)
 		if (p->first == p->last)
 			p->type = m->splitnext;
 		else if (p->type != m->splitnext) {
+			wasfocus = p->focus == ref;
 			w = nodenew(m->splitnext);
 			w->weight = ref->weight;
 			nodeinsert(p, ref->prev, w);
 			nodeunlink(ref);
 			nodeinsert(w, NULL, ref);
 			ref->weight = 1;
+			/* ref moved into w; keep the container's focus on the branch
+			 * that used to hold it instead of dropping it */
+			if (wasfocus)
+				p->focus = w;
 			p = w;
 		}
 		m->splitnext = -1;
@@ -3086,7 +3099,14 @@ resizenode(const Arg *arg)
 			continue;
 		if (!nodeadj(n, 0) && !nodeadj(n, 1))
 			continue;
-		n->weight = grow ? n->weight * 1.15f + 0.05f : MAX(0.1f, n->weight / 1.15f);
+		if (grow) {
+			n->weight = n->weight * 1.15f + 0.05f;
+			/* Keep weights finite: (int)(inf/inf) below would be undefined.
+			 * 1e6:1 is already far beyond any usable split ratio. */
+			if (n->weight > 1e6f)
+				n->weight = 1e6f;
+		} else
+			n->weight = MAX(0.1f, n->weight / 1.15f);
 		arrange(selmon);
 		return;
 	}
