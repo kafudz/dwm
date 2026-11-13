@@ -176,6 +176,11 @@ drw_clr_create(Drw *drw, Clr *dest, const char *clrname)
 	                       DefaultColormap(drw->dpy, drw->screen),
 	                       clrname, dest))
 		die("error, cannot allocate color '%s'", clrname);
+
+	/* Depth-32 clients (Chromium, Electron, etc.) interpret the border pixel
+	 * as premultiplied ARGB. Force an opaque alpha so the border does not
+	 * become transparent when a compositor is running. */
+	dest->pixel |= 0xffu << 24;
 }
 
 /* Create color schemes. */
