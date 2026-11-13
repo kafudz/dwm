@@ -48,10 +48,10 @@ static const int refreshrate         = 60;   /* refresh rate (per second) for cl
 
 static const Layout layouts[] = {
 	/* symbol     arrange function */
-	{ "i3 ",     i3layout },    /* first entry is default */
-	{ " ",      tile },
-	{ " ",      NULL },    /* no layout function means floating behavior */
-	{ " ",      monocle },
+	{ "  ",     i3layout },    /* first entry is default */
+	{ "  T",      tile },
+	{ "  F",      NULL },    /* no layout function means floating behavior */
+	{ "  M",      monocle },
 };
 
 /* key definitions */
