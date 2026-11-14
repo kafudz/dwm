@@ -302,6 +302,11 @@ static int refresh_systray_icons = 0;
 static int systrayfailed = 0;
 static const char broken[] = "broken";
 static char stext[256];
+/* Invisible gap between status segments (keep in sync with SEGSEP in
+ * dwmstatus.c). */
+#define STATUSSEP "  "
+/* Space between the status text and the systray / screen edge. */
+#define STATUSGAP 12
 static int screen;
 static int sw, sh;           /* X display screen geometry width, height */
 static int bh;               /* bar height */
@@ -538,7 +543,8 @@ buttonpress(XEvent *e)
 			click = ClkLtSymbol;
 		else {
 			int barw = selmon->ww - (systrayonleft ? 0 : (int)getsystraywidth(selmon));
-			if (ev->x > barw - statuswidth()) {
+			if (ev->x > barw - statuswidth() - STATUSGAP &&
+			    ev->x < barw - STATUSGAP) {
 				click = ClkStatusText;
 				segname = statussegmentname(statussegmentat(ev->x));
 			} else
@@ -896,7 +902,8 @@ drawbar(Monitor *m)
 	if (m == selmon) {
 		drw_setscheme(drw, scheme[SchemeNorm]);
 		tw = statuswidth();
-		drw_text(drw, m->ww - tw - sto, 0, tw, bh, lrpad / 2 - 2, stext, 0);
+		drw_text(drw, m->ww - tw - sto - STATUSGAP, 0, tw, bh,
+		         lrpad / 2 - 2, stext, 0);
 	}
 	resizebarwin(m);
 	for (c = m->clients; c; c = c->next) {
@@ -918,7 +925,7 @@ drawbar(Monitor *m)
 	w = TEXTW(m->ltsymbol);
 	drw_setscheme(drw, scheme[SchemeNorm]);
 	x = drw_text(drw, x, 0, w, bh, lrpad / 2, m->ltsymbol, 0);
-	if ((w = m->ww - tw - stw - x) > bh) {
+	if ((w = m->ww - tw - stw - STATUSGAP - x) > bh) {
 		if (m->sel && m->lt[m->sellt]->arrange == i3layout && drawtabs(m, x, w))
 			;
 		else if (m->sel) {
@@ -2655,8 +2662,6 @@ statuswidth(void)
  * volume, ...) instead of always covering the whole status text. Returns -1
  * when x is left of the text.
  */
-#define STATUSSEP "    "
-
 static int
 statussegmentat(int x)
 {
@@ -2666,7 +2671,7 @@ statussegmentat(int x)
 	size_t len;
 
 	barw = selmon->ww - (systrayonleft ? 0 : (int)getsystraywidth(selmon));
-	left = barw - statuswidth() + lrpad / 2 - 2;
+	left = barw - STATUSGAP - statuswidth() + lrpad / 2 - 2;
 	if (x < left)
 		return -1;
 
