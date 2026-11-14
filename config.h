@@ -157,7 +157,7 @@ static const Button buttons[] = {
 	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0}, NULL },
 	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[3]}, NULL },
 	{ ClkWinTitle,          0,              Button2,        zoom,           {0}, NULL },
-	{ ClkStatusText,        0,              Button1,        spawn,          {.v = popupcmd }, "tim" },
+	{ ClkStatusText,        0,              Button1,        spawn,          {.v = popupcmd }, NULL },
 	{ ClkStatusText,        0,              Button3,        spawn,          {.v = termcmd }, NULL },
 	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0}, NULL },
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0}, NULL },
