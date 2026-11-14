@@ -83,9 +83,9 @@ static const char *dmenucmd[]         = { "dmenu_run", "-C","-i", "-L", "-l", "1
 static const char *termcmd[]          = { "st", NULL };
 static const char *dmenudesktopcmd[]  = { "dmenu_apps", "-C","-i", "-L", "-l", "10", "-pp", "30", "-ip", "30", "-z", "400", "-x", "790", "-y", "220", "-op", "95", "-bw", "1", "-nb", "#101113", NULL };
 static const char *sysmenucmd[]       = { "sysmenu", NULL };
-static const char *calendarcmd[]      = { "dwmstatus-calendar", NULL };
-static const char *volumecmd[]        = { "dwmstatus-volume", NULL };
-static const char *brightnesscmd[]    = { "dwmstatus-brightness", NULL };
+static const char *popupbricmd[]      = { "dwmstatus-popup", "bri", NULL };
+static const char *popupvolcmd[]      = { "dwmstatus-popup", "vol", NULL };
+static const char *popuptimcmd[]      = { "dwmstatus-popup", "tim", NULL };
 
 static const Key keys[] = {
 	/* modifier                     key                        function        argument */
@@ -159,9 +159,9 @@ static const Button buttons[] = {
 	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0}, NULL },
 	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[3]}, NULL },
 	{ ClkWinTitle,          0,              Button2,        zoom,           {0}, NULL },
-	{ ClkStatusText,        0,              Button1,        spawn,          {.v = calendarcmd }, "tim" },
-	{ ClkStatusText,        0,              Button1,        spawn,          {.v = volumecmd },  "vol" },
-	{ ClkStatusText,        0,              Button1,        spawn,          {.v = brightnesscmd }, "bri" },
+	{ ClkStatusText,        0,              Button1,        spawn,          {.v = popuptimcmd }, "tim" },
+	{ ClkStatusText,        0,              Button1,        spawn,          {.v = popupvolcmd }, "vol" },
+	{ ClkStatusText,        0,              Button1,        spawn,          {.v = popupbricmd }, "bri" },
 	{ ClkStatusText,        0,              Button3,        spawn,          {.v = termcmd }, NULL },
 	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0}, NULL },
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0}, NULL },
