@@ -229,6 +229,7 @@ static Client *nexttiled(Client *c);
 static void pop(Client *c);
 static void propertynotify(XEvent *e);
 static void quit(const Arg *arg);
+static void restart(const Arg *arg);
 static Monitor *recttomon(int x, int y, int w, int h);
 static void refreshsystray(void);
 static void removesystrayicon(Client *i);
@@ -1542,6 +1543,27 @@ void
 quit(const Arg *arg)
 {
 	running = 0;
+}
+
+void
+restart(const Arg *arg)
+{
+	char path[PATH_MAX];
+	ssize_t n;
+
+	(void)arg;
+	/*
+	 * Restart the same binary, not whatever "dwm" resolves to in $PATH.
+	 * Xlib opens its socket close-on-exec, so the old WM connection is
+	 * dropped when the new image takes over this process.
+	 */
+	n = readlink("/proc/self/exe", path, sizeof(path) - 1);
+	if (n > 0) {
+		path[n] = '\0';
+		execv(path, (char *[]){ path, NULL });
+	}
+	execvp("dwm", (char *[]){ "dwm", NULL });
+	die("dwm: restart failed:");
 }
 
 Monitor *
