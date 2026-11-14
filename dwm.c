@@ -213,6 +213,7 @@ static long getstate(Window w);
 static unsigned int getsystraywidth(Monitor *m);
 static int getxembedflags(Window w, long *flags);
 static int gettextprop(Window w, Atom atom, char *text, unsigned int size);
+static int isstatuspopup(Window w);
 static void grabbuttons(Client *c, int focused);
 static void grabkeys(void);
 static void incnmaster(const Arg *arg);
@@ -226,6 +227,7 @@ static void motionnotify(XEvent *e);
 static void movemouse(const Arg *arg);
 static Client *nexttagged(Client *c);
 static Client *nexttiled(Client *c);
+static void placepopup(Client *c);
 static void pop(Client *c);
 static void propertynotify(XEvent *e);
 static void quit(const Arg *arg);
@@ -691,6 +693,37 @@ centerclient(Client *c)
 {
 	c->x = MAX(c->mon->wx + (c->mon->ww - WIDTH(c)) / 2, c->mon->wx);
 	c->y = MAX(c->mon->wy + (c->mon->wh - HEIGHT(c)) / 2, c->mon->wy);
+}
+
+/* dwmstatus-popup gets a fixed corner instead of being centred. */
+int
+isstatuspopup(Window w)
+{
+	XClassHint ch = { NULL, NULL };
+	int match = 0;
+
+	if (XGetClassHint(dpy, w, &ch)) {
+		match = ch.res_class && strcmp(ch.res_class, "dwmstatus-popup") == 0;
+		if (ch.res_name)
+			XFree(ch.res_name);
+		if (ch.res_class)
+			XFree(ch.res_class);
+	}
+	return match;
+}
+
+/* Fixed corner used by dwmstatus-popup: 40 px from the top, 15 px from the
+ * right edge. Keeping this here means the window is mapped in the right place
+ * and never flashes at the centre of the screen first. */
+void
+placepopup(Client *c)
+{
+	c->x = c->mon->wx + c->mon->ww - c->w - 15;
+	c->y = c->mon->wy + 40;
+	if (c->y + c->h > c->mon->wy + c->mon->wh - 10)
+		c->y = c->mon->wy + c->mon->wh - c->h - 10;
+	c->x = MAX(c->x, c->mon->wx);
+	c->y = MAX(c->y, c->mon->wy);
 }
 
 void
@@ -1325,9 +1358,14 @@ manage(Window w, XWindowAttributes *wa)
 		c->isfloating = c->oldstate = trans != None || c->isfixed;
 	if (c->isfloating) {
 		/* center pop-ups (dialogs, transients, fixed-size and rule-floated
-		 * windows) on their monitor; fullscreen windows keep their geometry */
-		if (!c->isfullscreen)
-			centerclient(c);
+		 * windows) on their monitor; fullscreen windows keep their geometry.
+		 * dwmstatus-popup sits in its fixed corner instead. */
+		if (!c->isfullscreen) {
+			if (isstatuspopup(c->win))
+				placepopup(c);
+			else
+				centerclient(c);
+		}
 		XRaiseWindow(dpy, c->win);
 	}
 	attachaside(c);
