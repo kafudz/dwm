@@ -2649,11 +2649,14 @@ statuswidth(void)
 }
 
 /*
- * Map a click on the status text to a segment index. dwmstatus separates its
- * segments with " | " and publishes their names in _DWMSTATUS_SEGMENTS, so a
- * click can be routed to one segment (clock, volume, ...) instead of always
- * covering the whole status text. Returns -1 when x is left of the text.
+ * dwmstatus separates its icons with an invisible gap (STATUSSEP; keep in
+ * sync with SEGSEP in dwmstatus.c) and publishes their names in
+ * _DWMSTATUS_SEGMENTS, so a click can be routed to one segment (clock,
+ * volume, ...) instead of always covering the whole status text. Returns -1
+ * when x is left of the text.
  */
+#define STATUSSEP "    "
+
 static int
 statussegmentat(int x)
 {
@@ -2667,8 +2670,8 @@ statussegmentat(int x)
 	if (x < left)
 		return -1;
 
-	for (p = stext;; p = q + 3, n++) {
-		q = strstr(p, " | ");
+	for (p = stext;; p = q + (int)strlen(STATUSSEP), n++) {
+		q = strstr(p, STATUSSEP);
 		len = q ? (size_t)(q - p) : strlen(p);
 		if (len >= sizeof seg)
 			len = sizeof seg - 1;
@@ -2681,7 +2684,7 @@ statussegmentat(int x)
 		left += w;
 		if (!q)
 			return n;
-		left += drw_fontset_getwidth(drw, " | ");
+		left += drw_fontset_getwidth(drw, STATUSSEP);
 	}
 }
 
@@ -2702,7 +2705,7 @@ statussegmentname(int index)
 		return NULL;
 
 	/* The names must match the segments actually present in stext. */
-	for (p = stext; (p = strstr(p, " | ")); p += 3)
+	for (p = stext; (p = strstr(p, STATUSSEP)); p += strlen(STATUSSEP))
 		count++;
 
 	if (XGetWindowProperty(dpy, root, dwmstatussegments, 0,
