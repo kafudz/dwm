@@ -85,6 +85,7 @@ static const char *dmenudesktopcmd[]  = { "dmenu_apps", "-C","-i", "-L", "-l", "
 static const char *sysmenucmd[]       = { "sysmenu", NULL };
 static const char *popupbricmd[]      = { "dwmstatus-popup", "bri", NULL };
 static const char *popupvolcmd[]      = { "dwmstatus-popup", "vol", NULL };
+static const char *popupbatcmd[]      = { "dwmstatus-popup", "bat", NULL };
 static const char *popuptimcmd[]      = { "dwmstatus-popup", "tim", NULL };
 
 static const Key keys[] = {
@@ -162,6 +163,7 @@ static const Button buttons[] = {
 	{ ClkStatusText,        0,              Button1,        spawn,          {.v = popuptimcmd }, "tim" },
 	{ ClkStatusText,        0,              Button1,        spawn,          {.v = popupvolcmd }, "vol" },
 	{ ClkStatusText,        0,              Button1,        spawn,          {.v = popupbricmd }, "bri" },
+	{ ClkStatusText,        0,              Button1,        spawn,          {.v = popupbatcmd }, "bat" },
 	{ ClkStatusText,        0,              Button3,        spawn,          {.v = termcmd }, NULL },
 	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0}, NULL },
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0}, NULL },
