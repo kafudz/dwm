@@ -85,6 +85,7 @@ static const char *dmenudesktopcmd[]  = { "dmenu_apps", "-C","-i", "-L", "-l", "
 static const char *sysmenucmd[]       = { "sysmenu", NULL };
 static const char *calendarcmd[]      = { "dwmstatus-calendar", NULL };
 static const char *volumecmd[]        = { "dwmstatus-volume", NULL };
+static const char *brightnesscmd[]    = { "dwmstatus-brightness", NULL };
 
 static const Key keys[] = {
 	/* modifier                     key                        function        argument */
@@ -160,6 +161,7 @@ static const Button buttons[] = {
 	{ ClkWinTitle,          0,              Button2,        zoom,           {0}, NULL },
 	{ ClkStatusText,        0,              Button1,        spawn,          {.v = calendarcmd }, "tim" },
 	{ ClkStatusText,        0,              Button1,        spawn,          {.v = volumecmd },  "vol" },
+	{ ClkStatusText,        0,              Button1,        spawn,          {.v = brightnesscmd }, "bri" },
 	{ ClkStatusText,        0,              Button3,        spawn,          {.v = termcmd }, NULL },
 	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0}, NULL },
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0}, NULL },
