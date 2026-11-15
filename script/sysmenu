@@ -1,38 +1,121 @@
 #!/bin/sh
-# dmenu power menu
+# sysmenu - menu daya untuk dwm (dmenu)
+#
+# Dipanggil dari dwm lewat MODKEY+v (sysmenucmd di config.h).
+# Memakai dmenu-kafudz: -C menutup saat klik di luar, -L garis pemisah item.
 
-# Font used for dmenu (VictorMono Nerd Font)
 FONT="VictorMono Nerd Font:size=11"
 
-# Ask for confirmation before destructive actions (returns 0 on "Yes")
-confirm() {
-    [ "$(printf 'No\nYes\n' | dmenu -C -i -L -l 10 -pp 30 -ip 30 -z 300 -x 840 -y 250 -op 95 -bw 1 -nb '#101113' -p "$1?")" = "Yes" ]
+# Geometri menu (monitor 1920x1080), sejalan dengan gaya dmenu_run.
+MENU_X=840
+MENU_Y=250
+MENU_W=300
+
+# ---------------------------------------------------------------------------
+# Utilitas
+# ---------------------------------------------------------------------------
+
+notify() {
+    command -v notify-send >/dev/null 2>&1 || return 0
+    notify-send "$1" "${2:-}" >/dev/null 2>&1 || :
 }
 
-choice=$(printf '%s\n' "Log out" "Reboot" "Shutdown" "Suspend" "Hibernate" "Cancel" |
-    dmenu -C -i -L -l 10 -pp 30 -ip 30 -z 300 -x 840 -y 250 -op 95 -bw 1 -nb '#101113' -fn "$FONT") || exit 0
+# Satu definisi flag dmenu, supaya menu utama dan konfirmasi selalu seragam.
+dmenu_base() {
+    dmenu -C -i -L -pp 30 -ip 30 -z "$MENU_W" -x "$MENU_X" -y "$MENU_Y" \
+        -op 95 -bw 1 -nb '#121314' -fn "$FONT" "$@"
+}
+
+# Konfirmasi Yes/No.
+# dmenu memakai -l sebagai TINGGI window, bukan batas item: -l 10 untuk dua
+# item menyisakan delapan baris kosong. Jadi -l selalu = jumlah item.
+confirm() {
+    [ "$(printf 'No\nYes\n' | dmenu_base -l 2 -p "$1?")" = "Yes" ]
+}
+
+# Cegah dua menu terbuka bersamaan bila keybind ditekan dua kali.
+if command -v flock >/dev/null 2>&1; then
+    if exec 9>"${XDG_RUNTIME_DIR:-/tmp}/sysmenu.lock"; then
+        flock -n 9 2>/dev/null || exit 0
+    fi
+fi
+
+if ! command -v dmenu >/dev/null 2>&1; then
+    notify "sysmenu" "dmenu tidak ditemukan"
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Screen locker
+# ---------------------------------------------------------------------------
+
+# Pakai ~/bin/lockscreen.sh agar opsi i3lock sama dengan yang dipakai
+# xss-lock. Fallback ke i3lock polos bila skrip belum ada.
+lock_screen() {
+    # Lepas flock (fd 9) agar tidak diwarisi i3lock yang berjalan lama.
+    exec 9>&- 2>/dev/null || :
+
+    if [ -x "$HOME/bin/lockscreen.sh" ]; then
+        "$HOME/bin/lockscreen.sh"
+    else
+        i3lock -n -c 121314
+    fi
+}
+
+LOCK_AVAILABLE=0
+if [ -x "$HOME/bin/lockscreen.sh" ] || command -v i3lock >/dev/null 2>&1; then
+    LOCK_AVAILABLE=1
+fi
+
+# ---------------------------------------------------------------------------
+# Susun menu
+# ---------------------------------------------------------------------------
+
+items="Log out
+Reboot
+Shutdown"
+
+if [ "$LOCK_AVAILABLE" -eq 1 ]; then
+    items="Lock
+$items"
+fi
+
+items="$items
+Cancel"
+
+menu_lines=$(printf '%s\n' "$items" | wc -l | tr -d '[:space:]')
+
+choice=$(printf '%s\n' "$items" | dmenu_base -l "$menu_lines" -p "Power") || exit 0
+
+# ---------------------------------------------------------------------------
+# Aksi
+# ---------------------------------------------------------------------------
 
 case "$choice" in
+    "Lock")
+        lock_screen
+        ;;
     "Log out")
         confirm "Log out" || exit 0
-        # Stop the window manager; X exits when dwm is the last client of xinit.
-        # Fall back to xinit itself (exact match, so other processes are safe).
-        pkill -x dwm || pkill -x xinit
+        # dwm tidak menangani SIGTERM, jadi keluar dengan status 143.
+        # .xinitrc memperlakukan 143 sebagai akhir sesi, bukan crash.
+        if ! pkill -u "$(id -u)" -x dwm 2>/dev/null; then
+            pkill -u "$(id -u)" -x xinit 2>/dev/null ||
+                notify "Log out" "Tidak dapat menghentikan sesi X"
+        fi
         ;;
     "Reboot")
-        confirm "Reboot" && systemctl reboot
+        if confirm "Reboot"; then
+            systemctl reboot || notify "Reboot gagal" "Autentikasi dibatalkan?"
+        fi
         ;;
     "Shutdown")
-        confirm "Shutdown" && systemctl poweroff
-        ;;
-    "Suspend")
-        systemctl suspend
-        ;;
-    "Hibernate")
-        systemctl hibernate ||
-            notify-send "Hibernate failed" "Check swap / resume= kernel parameter" 2>/dev/null
+        if confirm "Shutdown"; then
+            systemctl poweroff || notify "Shutdown gagal" "Autentikasi dibatalkan?"
+        fi
         ;;
     *)
         exit 0
         ;;
 esac
+
