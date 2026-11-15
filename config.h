@@ -79,9 +79,9 @@ static const char *dimmer[]   = { "brightnessctl", "set", "10%-", NULL };
 
 /* commands */
 static char dmenumon[8]; /* component of dmenucmd, manipulated in spawn() */
-static const char *dmenucmd[]         = { "dmenu_run", "-C","-i", "-L", "-R", "-l", "10", "-pp", "30", "-ip", "30", "-z", "400", "-y", "220", "-op", "95", "-bw", "1", "-nb", "#101113", NULL };
+static const char *dmenucmd[]         = { "dmenu_run", "-C","-i", "-L", "-R", "-l", "10", "-pp", "30", "-ip", "30", "-z", "400", "-y", "220", "-x", "760", "-bw", "1", "-nb", "#101113", NULL };
 static const char *termcmd[]          = { "st", NULL };
-static const char *dmenudesktopcmd[]  = { "dmenu_apps", "-C","-i", "-L", "-R", "-l", "10", "-pp", "30", "-ip", "30", "-z", "400", "-y", "220", "-op", "95", "-bw", "1", "-nb", "#101113", NULL };
+static const char *dmenudesktopcmd[]  = { "dmenu_apps", "-C","-i", "-L", "-R", "-l", "10", "-pp", "30", "-ip", "30", "-z", "400", "-y", "220","-x", "760", "-bw", "1", "-nb", "#101113", NULL };
 static const char *sysmenucmd[]       = { "sysmenu", NULL };
 static const char *popupvolcmd[]      = { "dwmstatus-popup", "vol", NULL };
 static const char *popupbatcmd[]      = { "dwmstatus-popup", "bat", NULL };
