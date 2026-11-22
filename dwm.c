@@ -229,6 +229,7 @@ static Client *nexttiled(Client *c);
 static void pop(Client *c);
 static void propertynotify(XEvent *e);
 static void quit(const Arg *arg);
+static void raisedwmstatus(void);
 static void refresh(const Arg *arg);
 static void restart(const Arg *arg);
 static Monitor *recttomon(int x, int y, int w, int h);
@@ -734,6 +735,7 @@ configurenotify(XEvent *e)
 				resizebarwin(m);
 			}
 			updatesystray();
+			raisedwmstatus();
 			focus(NULL);
 			arrange(NULL);
 		}
@@ -1531,6 +1533,41 @@ quit(const Arg *arg)
 	running = 0;
 }
 
+/*
+ * dwmstatus panels are override-redirect windows drawn over the bar. When dwm
+ * re-execs, its old bars are destroyed and the new ones are mapped above the
+ * still-mapped panels, so the panel visually disappears. Lift existing
+ * dwmstatus panels above the freshly mapped bars.
+ */
+void
+raisedwmstatus(void)
+{
+	Window dw, parent, *wins = NULL;
+	unsigned int i, n = 0;
+	XClassHint ch;
+	XWindowAttributes wa;
+
+	if (!XQueryTree(dpy, root, &dw, &parent, &wins, &n) || !n)
+		goto done;
+	for (i = 0; i < n; i++) {
+		if (!XGetWindowAttributes(dpy, wins[i], &wa) ||
+		    wa.map_state != IsViewable || !wa.override_redirect)
+			continue;
+		ch.res_name = ch.res_class = NULL;
+		if (!XGetClassHint(dpy, wins[i], &ch))
+			continue;
+		if (ch.res_class && !strcmp(ch.res_class, "dwmstatus"))
+			XRaiseWindow(dpy, wins[i]);
+		if (ch.res_name)
+			XFree(ch.res_name);
+		if (ch.res_class)
+			XFree(ch.res_class);
+	}
+done:
+	if (wins)
+		XFree(wins);
+}
+
 void
 refresh(const Arg *arg)
 {
@@ -1965,6 +2002,7 @@ setup(void)
 	updatesystray();
 	updatebars();
 	updatestatus();
+	raisedwmstatus();
 	wmcheckwin = XCreateSimpleWindow(dpy, root, 0, 0, 1, 1, 0, 0, 0);
 	XChangeProperty(dpy, wmcheckwin, netatom[NetWMCheck], XA_WINDOW, 32,
 		PropModeReplace, (unsigned char *) &wmcheckwin, 1);
