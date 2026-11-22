@@ -48,8 +48,7 @@ static const int refreshrate         = 120;  /* refresh rate (per second) for cl
 
 static const Layout layouts[] = {
 	/* symbol     arrange function */
-	{ "i3 ",       i3layout }, /* first entry is default */
-	{ "[]=",      tile },
+	{ "[]=",      tile },    /* first entry is default */
 	{ "><>",      NULL },    /* no layout function means floating behavior */
 	{ "[M]",      monocle },
 };
@@ -84,6 +83,11 @@ static const char *termcmd[]  = { "st", NULL };
 
 static const Key keys[] = {
 	/* modifier                     key        function        argument */
+	{ 0,                            XF86XK_MonBrightnessDown,  spawn,          {.v = dimmer } },
+	{ 0,                            XF86XK_MonBrightnessUp,    spawn,          {.v = brighter } },
+	{ 0,                            XF86XK_AudioRaiseVolume,   spawn,          {.v = up_vol } },
+	{ 0,                            XF86XK_AudioLowerVolume,   spawn,          {.v = down_vol } },
+	{ 0,                            XF86XK_AudioMute,          spawn,          {.v = mute_vol } },
 	{ MODKEY,                       XK_p,      spawn,          {.v = dmenucmd } },
 	{ MODKEY|ShiftMask,             XK_Return, spawn,          {.v = termcmd } },
 	{ MODKEY,                       XK_b,      togglebar,      {0} },
@@ -96,9 +100,9 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_Return, zoom,           {0} },
 	{ MODKEY,                       XK_Tab,    view,           {0} },
 	{ MODKEY|ShiftMask,             XK_c,      killclient,     {0} },
-	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[1]} },
-	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[2]} },
-	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[3]} },
+	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[0]} },
+	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[1]} },
+	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[2]} },
 	{ MODKEY,                       XK_space,  setlayout,      {0} },
 	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
 	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
@@ -117,17 +121,18 @@ static const Key keys[] = {
 	TAGKEYS(                        XK_8,                      7)
 	TAGKEYS(                        XK_9,                      8)
 	{ MODKEY,                       XK_r,      refresh,        {0} },
+	{ MODKEY|ShiftMask,             XK_r,      restart,        {0} },
 	{ MODKEY|ShiftMask,             XK_q,      quit,           {0} },
 };
 
 /* button definitions */
 /* click can be ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle, ClkClientWin, or ClkRootWin */
+/* The dwmstatus panel handles its own clicks; no ClkStatusText bindings here. */
 static const Button buttons[] = {
 	/* click                event mask      button          function        argument */
 	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0} },
-	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[3]} },
+	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[2]} },
 	{ ClkWinTitle,          0,              Button2,        zoom,           {0} },
-	{ ClkStatusText,        0,              Button2,        spawn,          {.v = termcmd } },
 	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0} },
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
 	{ ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0} },
