@@ -2742,7 +2742,7 @@ statuspanelwidth(Monitor *m)
 		if (!isstatuspanel(wins[i]) ||
 		    !XGetWindowAttributes(dpy, wins[i], &wa) ||
 		    !wa.override_redirect ||
-		    wa.y >= m->wy + m->wh || wa.y + wa.height <= m->wy)
+		    wa.y >= m->my + m->mh || wa.y + wa.height <= m->my)
 			continue;
 		if (wa.x + wa.width > right) {
 			right = wa.x + wa.width;
