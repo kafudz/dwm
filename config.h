@@ -36,6 +36,8 @@ static const Rule rules[] = {
 	/* class        instance    title                         tags mask     isfloating   monitor */
 	{ "mpv",        NULL,       NULL,                         0,            1,           -1 },
 	{ "Firefox",    NULL,       "Firefox Preferences",        0,            0,           -1 },
+	/* dwmstatus popups place themselves under their panel segment. */
+	{ "dwmstatus-popup", NULL,  NULL,                         0,            1,           -1 },
 };
 
 /* layout(s) */
@@ -83,9 +85,6 @@ static const char *dmenucmd[]         = { "dmenu_run", "-C","-i", "-L", "-R", "-
 static const char *termcmd[]          = { "st", NULL };
 static const char *dmenudesktopcmd[]  = { "dmenu_apps", "-C","-i", "-L", "-R", "-l", "10", "-pp", "30", "-ip", "30", "-z", "400", "-y", "220","-x", "760", "-bw", "1", "-nb", "#101113", NULL };
 static const char *sysmenucmd[]       = { "sysmenu", NULL };
-static const char *popupvolcmd[]      = { "dwmstatus-popup", "vol", NULL };
-static const char *popupbatcmd[]      = { "dwmstatus-popup", "bat", NULL };
-static const char *popuptimcmd[]      = { "dwmstatus-popup", "tim", NULL };
 
 static const Key keys[] = {
 	/* modifier                     key                        function        argument */
@@ -155,19 +154,17 @@ static const Key keys[] = {
 
 /* button definitions */
 /* click can be ClkTagBar, ClkLtSymbol, ClkStatusText, ClkWinTitle, ClkClientWin, or ClkRootWin */
+/* The dwmstatus panel handles its own clicks; no ClkStatusText bindings here. */
 static const Button buttons[] = {
 	/* click                event mask      button          function        argument */
-	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0}, NULL },
-	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[3]}, NULL },
-	{ ClkWinTitle,          0,              Button2,        zoom,           {0}, NULL },
-	{ ClkStatusText,        0,              Button1,        spawn,          {.v = popupvolcmd }, "vol" },
-	{ ClkStatusText,        0,              Button1,        spawn,          {.v = popupbatcmd }, "bat" },
-	{ ClkStatusText,        0,              Button1,        spawn,          {.v = popuptimcmd }, "caps" },
-	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0}, NULL },
-	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0}, NULL },
-	{ ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0}, NULL },
-	{ ClkTagBar,            0,              Button1,        view,           {0}, NULL },
-	{ ClkTagBar,            0,              Button3,        toggleview,     {0}, NULL },
-	{ ClkTagBar,            MODKEY,         Button1,        tag,            {0}, NULL },
-	{ ClkTagBar,            MODKEY,         Button3,        toggletag,      {0}, NULL },
+	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0} },
+	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[3]} },
+	{ ClkWinTitle,          0,              Button2,        zoom,           {0} },
+	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0} },
+	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
+	{ ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0} },
+	{ ClkTagBar,            0,              Button1,        view,           {0} },
+	{ ClkTagBar,            0,              Button3,        toggleview,     {0} },
+	{ ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
+	{ ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
 };

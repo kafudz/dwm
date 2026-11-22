@@ -32,14 +32,18 @@ the DISPLAY environment variable is set correctly, e.g.:
 
 (This will start dwm on display :1 of the host foo.bar.)
 
-In order to display status info in the bar, you can do something
-like this in your .xinitrc:
+Status is provided by the separate [dwmstatus](https://github.com/kafudz/dwmstatus)
+panel. It draws its own X windows over dwm's bar, handles its own clicks and
+needs no dwm patch. Start it from your `.xinitrc` alongside dwm; it finds the
+bar when dwm maps it:
 
-    while xsetroot -name "`date` `uptime | sed 's/.*,//'`"
-    do
-    	sleep 1
-    done &
+    dwmstatus &
     exec dwm
+
+(`start_bg dwmstatus dwmstatus` works too if your `.xinitrc` tracks background
+processes.) The panel writes a single space to the root window name so dwm does
+not show its `dwm-x.y` banner next to the panel. See the dwmstatus README for
+its click actions and GTK popup dependencies.
 
 
 Configuration
@@ -84,6 +88,8 @@ Feel free to read/copy it, but expect to edit `config.h` for your own system.
 - **Refresh rate patch** for smoother window move/resize
 - **dmenu desktop launcher** (`dmenu_apps`) and a `sysmenu` binding
 - **Screenshot keybindings** using scripts in `$HOME/bin/`
+- **dwmstatus panel** — a standalone status panel (clock, volume, power) that
+  draws over dwm's bar and no longer needs a dwm patch
 - Personal color scheme and tag layout
 
 See `config.h` for all keybindings, rules, and appearance settings.
