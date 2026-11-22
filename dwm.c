@@ -221,6 +221,7 @@ static void keypress(XEvent *e);
 static void killclient(const Arg *arg);
 static void manage(Window w, XWindowAttributes *wa);
 static void mappingnotify(XEvent *e);
+static void mapnotify(XEvent *e);
 static void maprequest(XEvent *e);
 static void monocle(Monitor *m);
 static void motionnotify(XEvent *e);
@@ -324,6 +325,7 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 	[FocusIn] = focusin,
 	[KeyPress] = keypress,
 	[MappingNotify] = mappingnotify,
+	[MapNotify] = mapnotify,
 	[MapRequest] = maprequest,
 	[MotionNotify] = motionnotify,
 	[PropertyNotify] = propertynotify,
@@ -1368,6 +1370,16 @@ mappingnotify(XEvent *e)
 	XRefreshKeyboardMapping(ev);
 	if (ev->request == MappingKeyboard)
 		grabkeys();
+}
+
+void
+mapnotify(XEvent *e)
+{
+	/* dwmstatus may start after dwm: reposition the tray once its panel maps. */
+	if (showsystray && systray && isstatuspanel(e->xmap.window)) {
+		updatesystray();
+		drawbars();
+	}
 }
 
 void
@@ -2729,7 +2741,7 @@ statuspanelwidth(Monitor *m)
 	for (i = 0; i < n; i++) {
 		if (!isstatuspanel(wins[i]) ||
 		    !XGetWindowAttributes(dpy, wins[i], &wa) ||
-		    wa.map_state != IsViewable || !wa.override_redirect ||
+		    !wa.override_redirect ||
 		    wa.y >= m->wy + m->wh || wa.y + wa.height <= m->wy)
 			continue;
 		if (wa.x + wa.width > right) {
