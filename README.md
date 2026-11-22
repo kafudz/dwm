@@ -67,11 +67,8 @@ Feel free to read/copy it, but expect to edit `config.h` for your own system.
 
 ## What’s included
 
-- **i3-style containers** remain in `dwm.c` for custom bindings, but are not
-  enabled in the default config; the default layout is `tile`. Tags only filter
-  visibility, so splits survive tag switches. Tab titles of the focused
-  tabbed/stacked container are shown in the bar when i3 is enabled. The standard
-  layouts (`tile`, floating, monocle) are on `Mod+t`, `Mod+f`, `Mod+m`.
+- **Standard layouts** — `tile`, floating and `monocle` on `Mod+t`, `Mod+f`,
+  `Mod+m`; `Mod+Space` cycles through them.
 
 - **Systray support** (with spacing and icon size options)
 - **Xft font rendering** — uses `VictorMono Nerd Font` by default

@@ -55,6 +55,10 @@ static const Layout layouts[] = {
 	{ "  M",      monocle },
 };
 
+/* Named indices keep layout keybindings in sync with layouts[] order. */
+enum { LayoutTile, LayoutFloat, LayoutMonocle };
+struct NumLayouts { char limitexceeded[LENGTH(layouts) <= LayoutMonocle ? -1 : 1]; };
+
 /* key definitions */
 #define MODKEY Mod1Mask
 #define TAGKEYS(KEY,TAG) \
@@ -108,9 +112,9 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_z,                      zoom,           {0} },
 	{ MODKEY,                       XK_Tab,                    view,           {0} },
 	{ MODKEY,                       XK_q,                      killclient,     {0} },
-	{ MODKEY,                       XK_t,                      setlayout,      {.v = &layouts[1]} },
-	{ MODKEY,                       XK_f,                      setlayout,      {.v = &layouts[2]} },
-	{ MODKEY,                       XK_m,                      setlayout,      {.v = &layouts[3]} },
+	{ MODKEY,                       XK_t,                      setlayout,      {.v = &layouts[LayoutTile]} },
+	{ MODKEY,                       XK_f,                      setlayout,      {.v = &layouts[LayoutFloat]} },
+	{ MODKEY,                       XK_m,                      setlayout,      {.v = &layouts[LayoutMonocle]} },
 	{ MODKEY,                       XK_space,                  setlayout,      {0} },
 	{ MODKEY|ShiftMask,             XK_space,                  togglefloating, {0} },
 	{ MODKEY,                       XK_0,                      view,           {.ui = ~0 } },
@@ -139,7 +143,7 @@ static const Key keys[] = {
 static const Button buttons[] = {
 	/* click                event mask      button          function        argument */
 	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0} },
-	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[3]} },
+	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[LayoutMonocle]} },
 	{ ClkWinTitle,          0,              Button2,        zoom,           {0} },
 	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0} },
 	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
