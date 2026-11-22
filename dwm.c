@@ -212,6 +212,7 @@ static long getstate(Window w);
 static unsigned int getsystraywidth(Monitor *m);
 static int getxembedflags(Window w, long *flags);
 static int gettextprop(Window w, Atom atom, char *text, unsigned int size);
+static int isstatuspanel(Window w);
 static int isstatuspopup(Window w);
 static void grabbuttons(Client *c, int focused);
 static void grabkeys(void);
@@ -254,7 +255,8 @@ static void setup(void);
 static void seturgent(Client *c, int urg);
 static void showhide(Client *c);
 static void spawn(const Arg *arg);
-static int statuswidth(void);
+static int statuspanelwidth(Monitor *m);
+static int statuswidth(Monitor *m);
 static void systraydock(Window win);
 static Monitor *systraytomon(Monitor *m);
 static void tag(const Arg *arg);
@@ -538,7 +540,7 @@ buttonpress(XEvent *e)
 			click = ClkLtSymbol;
 		else {
 			int barw = selmon->ww - (systrayonleft ? 0 : (int)getsystraywidth(selmon));
-			if (ev->x > barw - statuswidth() - STATUSGAP &&
+			if (ev->x > barw - statuswidth(selmon) - STATUSGAP &&
 			    ev->x < barw - STATUSGAP)
 				click = ClkStatusText;
 			else
@@ -666,6 +668,22 @@ centerclient(Client *c)
 	c->y = MAX(c->mon->wy + (c->mon->wh - HEIGHT(c)) / 2, c->mon->wy);
 }
 
+static int
+isstatuspanel(Window w)
+{
+	XClassHint ch = { NULL, NULL };
+	int match = 0;
+
+	if (XGetClassHint(dpy, w, &ch)) {
+		match = ch.res_class && strcmp(ch.res_class, "dwmstatus") == 0;
+		if (ch.res_name)
+			XFree(ch.res_name);
+		if (ch.res_class)
+			XFree(ch.res_class);
+	}
+	return match;
+}
+
 /* The dwmstatus panel positions its own popups next to the clicked segment
  * via DWMSTATUS_PANEL; keep the geometry they request instead of centring. */
 int
@@ -739,6 +757,11 @@ configurenotify(XEvent *e)
 			focus(NULL);
 			arrange(NULL);
 		}
+	} else if (showsystray && systray && isstatuspanel(ev->window)) {
+		/* The status panel changes width (e.g. Caps Lock on/off); keep the
+		 * tray directly to its left. */
+		updatesystray();
+		drawbars();
 	}
 }
 
@@ -894,7 +917,7 @@ drawbar(Monitor *m)
 		sto = stw;
 	if (m == selmon) {
 		drw_setscheme(drw, scheme[SchemeNorm]);
-		tw = statuswidth();
+		tw = statuswidth(m);
 		drw_text(drw, m->ww - tw - sto - STATUSGAP, 0, tw, bh,
 		         lrpad / 2 - 2, stext, 0);
 	}
@@ -1544,7 +1567,6 @@ raisedwmstatus(void)
 {
 	Window dw, parent, *wins = NULL;
 	unsigned int i, n = 0;
-	XClassHint ch;
 	XWindowAttributes wa;
 
 	if (!XQueryTree(dpy, root, &dw, &parent, &wins, &n) || !n)
@@ -1553,15 +1575,8 @@ raisedwmstatus(void)
 		if (!XGetWindowAttributes(dpy, wins[i], &wa) ||
 		    wa.map_state != IsViewable || !wa.override_redirect)
 			continue;
-		ch.res_name = ch.res_class = NULL;
-		if (!XGetClassHint(dpy, wins[i], &ch))
-			continue;
-		if (ch.res_class && !strcmp(ch.res_class, "dwmstatus"))
+		if (isstatuspanel(wins[i]))
 			XRaiseWindow(dpy, wins[i]);
-		if (ch.res_name)
-			XFree(ch.res_name);
-		if (ch.res_class)
-			XFree(ch.res_class);
 	}
 done:
 	if (wins)
@@ -2522,7 +2537,7 @@ updatesystray(void)
 		return;
 	x = m->mx + m->mw;
 	if (systrayonleft && m == selmon)
-		x -= statuswidth();
+		x -= statuswidth(m);
 	if (!systray) {
 		systray = ecalloc(1, sizeof(Systray));
 		systray->win = XCreateSimpleWindow(dpy, root, x, m->by, w, bh, 0, 0, scheme[SchemeNorm][ColBg].pixel);
@@ -2702,8 +2717,39 @@ xerrorstart(Display *dpy, XErrorEvent *ee)
 }
 
 int
-statuswidth(void)
+statuspanelwidth(Monitor *m)
 {
+	Window dw, parent, *wins = NULL;
+	unsigned int i, n = 0;
+	XWindowAttributes wa;
+	int width = 0, right = -1;
+
+	if (!m || !XQueryTree(dpy, root, &dw, &parent, &wins, &n) || !n)
+		goto done;
+	for (i = 0; i < n; i++) {
+		if (!isstatuspanel(wins[i]) ||
+		    !XGetWindowAttributes(dpy, wins[i], &wa) ||
+		    wa.map_state != IsViewable || !wa.override_redirect ||
+		    wa.y >= m->wy + m->wh || wa.y + wa.height <= m->wy)
+			continue;
+		if (wa.x + wa.width > right) {
+			right = wa.x + wa.width;
+			width = wa.width;
+		}
+	}
+done:
+	if (wins)
+		XFree(wins);
+	return width;
+}
+
+int
+statuswidth(Monitor *m)
+{
+	int pw = statuspanelwidth(m);
+
+	if (pw > 0)
+		return pw;
 	return TEXTW(stext) - lrpad / 2 + 2;
 }
 
