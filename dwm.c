@@ -229,6 +229,7 @@ static Client *nexttiled(Client *c);
 static void pop(Client *c);
 static void propertynotify(XEvent *e);
 static void quit(const Arg *arg);
+static void refresh(const Arg *arg);
 static void restart(const Arg *arg);
 static Monitor *recttomon(int x, int y, int w, int h);
 static void refreshsystray(void);
@@ -1528,6 +1529,13 @@ void
 quit(const Arg *arg)
 {
 	running = 0;
+}
+
+void
+refresh(const Arg *arg)
+{
+	/* Re-exec the current binary so a rebuilt config.h is picked up. */
+	restart(arg);
 }
 
 void
