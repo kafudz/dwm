@@ -72,7 +72,7 @@ Feel free to read/copy it, but expect to edit `config.h` for your own system.
   titles of the focused tabbed/stacked container are shown in the bar. The i3
   directional/container functions remain available for custom bindings, but are
   no longer bound by default. The old layouts (`tile`, floating, monocle) remain
-  on `Mod+t`, `Mod+f`, `Mod+m`; `Mod+Shift+t` returns to `i3`.
+  on `Mod+t`, `Mod+f`, `Mod+m`.
 
 - **Systray support** (with spacing and icon size options)
 - **Xft font rendering** — uses `VictorMono Nerd Font` by default
