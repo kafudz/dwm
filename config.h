@@ -1,7 +1,7 @@
 /* See LICENSE file for copyright and license details. */
 
 /* appearance */
-static const unsigned int borderpx        = 2;        /* border pixel of windows */
+static const unsigned int borderpx        = 1;        /* border pixel of windows */
 static const unsigned int snap            = 32;       /* snap pixel */
 static const unsigned int systraypinning  = 0;        /* 0: sloppy systray follows selected monitor, >0: pin systray to monitor X */
 static const unsigned int systrayonleft   = 1;        /* 0: systray in the right corner, >0: systray left of the dwmstatus panel */
@@ -100,24 +100,6 @@ static const Key keys[] = {
 	{ MODKEY,                       XK_o,                      spawn,          {.v = dmenucmd } },
 	{ MODKEY,                       XK_Return,                 spawn,          {.v = termcmd } },
 	{ MODKEY,                       XK_b,                      togglebar,      {0} },
-	{ MODKEY,                       XK_Left,                   focusdir,       {.i = DirLeft } },
-	{ MODKEY,                       XK_Right,                  focusdir,       {.i = DirRight } },
-	{ MODKEY,                       XK_Up,                     focusdir,       {.i = DirUp } },
-	{ MODKEY,                       XK_Down,                   focusdir,       {.i = DirDown } },
-	{ MODKEY|ShiftMask,             XK_Left,                   movedir,        {.i = DirLeft } },
-	{ MODKEY|ShiftMask,             XK_Right,                  movedir,        {.i = DirRight } },
-	{ MODKEY|ShiftMask,             XK_Up,                     movedir,        {.i = DirUp } },
-	{ MODKEY|ShiftMask,             XK_Down,                   movedir,        {.i = DirDown } },
-	{ MODKEY|ControlMask,           XK_Left,                   resizenode,     {.i = DirLeft } },
-	{ MODKEY|ControlMask,           XK_Right,                  resizenode,     {.i = DirRight } },
-	{ MODKEY|ControlMask,           XK_Up,                     resizenode,     {.i = DirUp } },
-	{ MODKEY|ControlMask,           XK_Down,                   resizenode,     {.i = DirDown } },
-	{ MODKEY|ShiftMask,             XK_h,                      setsplit,       {.i = NodeSplitH } },
-	{ MODKEY|ShiftMask,             XK_v,                      setsplit,       {.i = NodeSplitV } },
-	{ MODKEY,                       XK_e,                      togglesplit,    {0} },
-	{ MODKEY,                       XK_w,                      setcontainer,   {.i = NodeTabbed } },
-	{ MODKEY,                       XK_s,                      setcontainer,   {.i = NodeStacked } },
-	{ MODKEY|ShiftMask,             XK_s,                      setcontainer,   {.i = NodeSplitH } },
 	{ MODKEY|ShiftMask,             XK_t,                      setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                       XK_j,                      focusstack,     {.i = +1 } },
 	{ MODKEY,                       XK_k,                      focusstack,     {.i = -1 } },
