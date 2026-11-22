@@ -88,7 +88,6 @@ typedef struct {
 	unsigned int button;
 	void (*func)(const Arg *arg);
 	const Arg arg;
-	const char *segment; /* status segment name; NULL matches the whole text */
 } Button;
 
 typedef struct Monitor Monitor;
@@ -227,7 +226,6 @@ static void motionnotify(XEvent *e);
 static void movemouse(const Arg *arg);
 static Client *nexttagged(Client *c);
 static Client *nexttiled(Client *c);
-static void placepopup(Client *c);
 static void pop(Client *c);
 static void propertynotify(XEvent *e);
 static void quit(const Arg *arg);
@@ -254,8 +252,6 @@ static void setup(void);
 static void seturgent(Client *c, int urg);
 static void showhide(Client *c);
 static void spawn(const Arg *arg);
-static int statussegmentat(int x);
-static const char *statussegmentname(int index);
 static int statuswidth(void);
 static void systraydock(Window win);
 static Monitor *systraytomon(Monitor *m);
@@ -305,9 +301,6 @@ static int refresh_systray_icons = 0;
 static int systrayfailed = 0;
 static const char broken[] = "broken";
 static char stext[256];
-/* Invisible gap between status segments (keep in sync with SEGSEP in
- * dwmstatus.c). */
-#define STATUSSEP "  "
 /* Space between the status text and the systray / screen edge. */
 #define STATUSGAP 12
 static int screen;
@@ -334,7 +327,6 @@ static void (*handler[LASTEvent]) (XEvent *) = {
 	[UnmapNotify] = unmapnotify
 };
 static Atom wmatom[WMLast], netatom[NetLast], xatom[XLast];
-static Atom dwmstatussegments; /* segment names published by dwmstatus */
 static int running = 1;
 static Cur *cursor[CurLast];
 static Clr **scheme;
@@ -525,8 +517,6 @@ buttonpress(XEvent *e)
 	Client *c;
 	Monitor *m;
 	XButtonPressedEvent *ev = &e->xbutton;
-	const char *segname = NULL;
-	int segmatch = 0;
 
 	click = ClkRootWin;
 	if ((m = wintomon(ev->window)) && m != selmon) {
@@ -547,10 +537,9 @@ buttonpress(XEvent *e)
 		else {
 			int barw = selmon->ww - (systrayonleft ? 0 : (int)getsystraywidth(selmon));
 			if (ev->x > barw - statuswidth() - STATUSGAP &&
-			    ev->x < barw - STATUSGAP) {
+			    ev->x < barw - STATUSGAP)
 				click = ClkStatusText;
-				segname = statussegmentname(statussegmentat(ev->x));
-			} else
+			else
 				click = ClkWinTitle;
 		}
 	} else if ((c = wintoclient(ev->window))) {
@@ -560,31 +549,11 @@ buttonpress(XEvent *e)
 		click = ClkClientWin;
 	}
 
-	/* A binding for the clicked segment takes precedence over the generic
-	 * ClkStatusText binding, so both can coexist in config.h. */
-	if (click == ClkStatusText && segname)
-		for (i = 0; i < LENGTH(buttons); i++)
-			if (buttons[i].click == click && buttons[i].segment &&
-			    buttons[i].func && buttons[i].button == ev->button &&
-			    CLEANMASK(buttons[i].mask) == CLEANMASK(ev->state) &&
-			    strcmp(buttons[i].segment, segname) == 0) {
-				segmatch = 1;
-				break;
-			}
-
 	for (i = 0; i < LENGTH(buttons); i++) {
 		if (click != buttons[i].click || !buttons[i].func ||
 		    buttons[i].button != ev->button ||
 		    CLEANMASK(buttons[i].mask) != CLEANMASK(ev->state))
 			continue;
-		if (click == ClkStatusText) {
-			if (buttons[i].segment) {
-				if (!segname || strcmp(buttons[i].segment, segname) != 0)
-					continue;
-			} else if (segmatch) {
-				continue;
-			}
-		}
 		buttons[i].func(click == ClkTagBar && buttons[i].arg.i == 0 ? &arg : &buttons[i].arg);
 	}
 }
@@ -695,7 +664,8 @@ centerclient(Client *c)
 	c->y = MAX(c->mon->wy + (c->mon->wh - HEIGHT(c)) / 2, c->mon->wy);
 }
 
-/* dwmstatus-popup gets a fixed corner instead of being centred. */
+/* The dwmstatus panel positions its own popups next to the clicked segment
+ * via DWMSTATUS_PANEL; keep the geometry they request instead of centring. */
 int
 isstatuspopup(Window w)
 {
@@ -710,20 +680,6 @@ isstatuspopup(Window w)
 			XFree(ch.res_class);
 	}
 	return match;
-}
-
-/* Fixed corner used by dwmstatus-popup: 40 px from the top, 15 px from the
- * right edge. Keeping this here means the window is mapped in the right place
- * and never flashes at the centre of the screen first. */
-void
-placepopup(Client *c)
-{
-	c->x = c->mon->wx + c->mon->ww - c->w - 15;
-	c->y = c->mon->wy + 40;
-	if (c->y + c->h > c->mon->wy + c->mon->wh - 10)
-		c->y = c->mon->wy + c->mon->wh - c->h - 10;
-	c->x = MAX(c->x, c->mon->wx);
-	c->y = MAX(c->y, c->mon->wy);
 }
 
 void
@@ -1353,14 +1309,10 @@ manage(Window w, XWindowAttributes *wa)
 		c->isfloating = c->oldstate = trans != None || c->isfixed;
 	if (c->isfloating) {
 		/* center pop-ups (dialogs, transients, fixed-size and rule-floated
-		 * windows) on their monitor; fullscreen windows keep their geometry.
-		 * dwmstatus-popup sits in its fixed corner instead. */
-		if (!c->isfullscreen) {
-			if (isstatuspopup(c->win))
-				placepopup(c);
-			else
-				centerclient(c);
-		}
+		 * windows) on their monitor; fullscreen windows and dwmstatus
+		 * popups, which place themselves, keep their geometry. */
+		if (!c->isfullscreen && !isstatuspopup(c->win))
+			centerclient(c);
 		XRaiseWindow(dpy, c->win);
 	}
 	attachaside(c);
@@ -1977,7 +1929,6 @@ setup(void)
 		bh = drw->fonts->h;
 	updategeom();
 	utf8string = XInternAtom(dpy, "UTF8_STRING", False);
-	dwmstatussegments = XInternAtom(dpy, "_DWMSTATUS_SEGMENTS", False);
 	wmatom[WMProtocols] = XInternAtom(dpy, "WM_PROTOCOLS", False);
 	wmatom[WMDelete] = XInternAtom(dpy, "WM_DELETE_WINDOW", False);
 	wmatom[WMState] = XInternAtom(dpy, "WM_STATE", False);
@@ -2708,91 +2659,6 @@ int
 statuswidth(void)
 {
 	return TEXTW(stext) - lrpad / 2 + 2;
-}
-
-/*
- * dwmstatus separates its icons with an invisible gap (STATUSSEP; keep in
- * sync with SEGSEP in dwmstatus.c) and publishes their names in
- * _DWMSTATUS_SEGMENTS, so a click can be routed to one segment (clock,
- * volume, ...) instead of always covering the whole status text. Returns -1
- * when x is left of the text.
- */
-static int
-statussegmentat(int x)
-{
-	int barw, left, n = 0, w;
-	char seg[sizeof stext];
-	const char *p, *q;
-	size_t len;
-
-	barw = selmon->ww - (systrayonleft ? 0 : (int)getsystraywidth(selmon));
-	left = barw - STATUSGAP - statuswidth() + lrpad / 2 - 2;
-	if (x < left)
-		return -1;
-
-	for (p = stext;; p = q + (int)strlen(STATUSSEP), n++) {
-		q = strstr(p, STATUSSEP);
-		len = q ? (size_t)(q - p) : strlen(p);
-		if (len >= sizeof seg)
-			len = sizeof seg - 1;
-		memcpy(seg, p, len);
-		seg[len] = '\0';
-
-		w = drw_fontset_getwidth(drw, seg);
-		if (x < left + w)
-			return n;
-		left += w;
-		if (!q)
-			return n;
-		left += drw_fontset_getwidth(drw, STATUSSEP);
-	}
-}
-
-/* Return the name published for segment index, or NULL when unavailable. */
-static const char *
-statussegmentname(int index)
-{
-	static char names[256];
-	static char *list[32];
-	Atom type;
-	unsigned long nitems, bytes;
-	unsigned char *data = NULL;
-	int format, count = 0, entries = 1, n = 0;
-	const char *p;
-	char *tok, *save = NULL;
-
-	if (index < 0 || dwmstatussegments == None)
-		return NULL;
-
-	/* The names must match the segments actually present in stext. */
-	for (p = stext; (p = strstr(p, STATUSSEP)); p += strlen(STATUSSEP))
-		count++;
-
-	if (XGetWindowProperty(dpy, root, dwmstatussegments, 0,
-	                       (long)(sizeof names / 4), False, XA_STRING,
-	                       &type, &format, &nitems, &bytes, &data) != Success ||
-	    !data)
-		return NULL;
-	if (type != XA_STRING || format != 8 || nitems == 0) {
-		XFree(data);
-		return NULL;
-	}
-	if (nitems >= sizeof names)
-		nitems = sizeof names - 1;
-	memcpy(names, data, nitems);
-	names[nitems] = '\0';
-	XFree(data);
-
-	for (p = names; *p; p++)
-		if (*p == ',')
-			entries++;
-	if (entries != count + 1)
-		return NULL;
-
-	for (tok = strtok_r(names, ",", &save); tok; tok = strtok_r(NULL, ",", &save))
-		list[n++] = tok;
-
-	return index < n ? list[index] : NULL;
 }
 
 void
