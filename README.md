@@ -86,6 +86,7 @@ Feel free to read/copy it, but expect to edit `config.h` for your own system.
 - **Xft font rendering** — uses `VictorMono Nerd Font` by default
 - **Media keys** for volume (via `pactl`) and screen brightness (via `brightnessctl`)
 - **Refresh rate patch** for smoother window move/resize
+- **Config refresh** — `Mod+r` re-execs dwm (after `make`) to load a rebuilt `config.h`
 - **dmenu desktop launcher** (`dmenu_apps`) and a `sysmenu` binding
 - **Screenshot keybindings** using scripts in `$HOME/bin/`
 - **dwmstatus panel** — a standalone status panel (clock, volume, power) that
